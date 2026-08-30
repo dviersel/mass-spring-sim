@@ -160,6 +160,8 @@ function drawRestAxis(
     for (let i = 0; i < frame.spec.nodes.length; i++) {
       ctx.fillText(String(i), axisX(frame, l, i), l.axisY + 24)
     }
+    ctx.textAlign = 'right'
+    ctx.fillText('node', PAD_X - 10, l.axisY + 24)
     return
   }
 
@@ -182,6 +184,8 @@ function drawRestAxis(
   for (let i = 0; i < frame.spec.nodes.length; i++) {
     ctx.fillText(String(i), axisX(frame, l, i), height - PAD_Y + 18)
   }
+  ctx.textAlign = 'right'
+  ctx.fillText('node', PAD_X - 10, height - PAD_Y + 18)
 }
 
 function nodeY(frame: ChainFrame, l: Layout, i: number): number {

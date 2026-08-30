@@ -104,5 +104,17 @@ export function drawParticipation(
       ctx.fillText(`${mode.frequencyHz.toFixed(0)}`, centre, height - PAD_BOTTOM + 23)
     }
   }
+
+  // Name the axis. These bars are indexed by MODE and there is one per degree
+  // of freedom, whereas the seismograph pens are indexed by NODE and there is
+  // one per node -- different quantities, different counts. They share a hue
+  // ramp, which makes saying so worth the two words.
+  ctx.fillStyle = COLORS.dim
+  ctx.textAlign = 'right'
+  ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace'
+  ctx.fillText('mode', PAD_LEFT - 6, height - PAD_BOTTOM + 13)
+  ctx.font = '8px ui-monospace, SFMono-Regular, Menlo, monospace'
+  ctx.fillText('Hz', PAD_LEFT - 6, height - PAD_BOTTOM + 23)
+
   ctx.globalAlpha = 1
 }
