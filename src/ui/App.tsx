@@ -111,6 +111,9 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
   const now = stats?.time ?? 0
   const timeVarying = useMemo(() => hasTimeVaryingStiffness(spec), [spec])
   const transverse = spec.motionMode === 'transverse'
+  // Transverse motion forces the perpendicular drawing, which is also the one
+  // that has no vertical axis left for the pens.
+  const perpendicularDrawing = transverse || view.orientation === 'perpendicular'
 
   const patchView = useCallback((patch: Partial<ViewSettings>) => {
     setView((current) => ({ ...current, ...patch }))
@@ -319,6 +322,43 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                 value={view.traceWindow}
                 onChange={(traceWindow) => patchView({ traceWindow })}
               />
+            </div>
+            <label
+              className="row"
+              style={{ gap: 6, fontSize: 11.5, color: 'var(--muted)' }}
+              title={
+                perpendicularDrawing
+                  ? 'The pens need the vertical axis for time, which this drawing spends on displacement.'
+                  : 'One pen per mass, time running up the pane.'
+              }
+            >
+              <input
+                type="checkbox"
+                checked={view.seismograph && !perpendicularDrawing}
+                disabled={perpendicularDrawing}
+                style={{ width: 'auto' }}
+                onChange={(e) => patchView({ seismograph: e.target.checked })}
+              />
+              seismograph pens per node
+            </label>
+            <div className="hint-text">
+              {perpendicularDrawing ? (
+                <>
+                  Unavailable with this drawing: the pens need the vertical axis for
+                  time, and a perpendicular plot has already spent it on displacement.
+                  Switch the drawing to <span className="mono">inline</span> to record
+                  them.
+                </>
+              ) : (
+                <>
+                  A pen per mass, deflecting exactly as its node does and drifting
+                  upward with time. Read them together: a disturbance entering one end
+                  sweeps across as a diagonal, which is a travelling wave seen
+                  directly, while a standing wave puts every pen in step and leaves the
+                  mode's own nodes flat. The trace window above sets how far back they
+                  reach.
+                </>
+              )}
             </div>
           </Panel>
 

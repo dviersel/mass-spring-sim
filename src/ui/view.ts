@@ -34,6 +34,14 @@ export interface ViewSettings {
   readonly traceWindow: number
   /** Mode number (1-based) to overlay as a dashed reference shape, or null. */
   readonly overlayMode: number | null
+  /**
+   * Draw a seismograph pen per node in the main pane, time running up it.
+   *
+   * Only meaningful alongside the inline drawing: the pens need the vertical
+   * axis for time, and the perpendicular drawing has already spent it on
+   * displacement.
+   */
+  readonly seismograph: boolean
 }
 
 export const DEFAULT_VIEW: ViewSettings = {
@@ -49,8 +57,9 @@ export const DEFAULT_VIEW: ViewSettings = {
   displacementExaggeration: 22,
   orientation: 'inline',
   tracedNode: 3,
-  traceWindow: 1.5,
+  traceWindow: 2.5,
   overlayMode: null,
+  seismograph: true,
 }
 
 export const TIME_SCALE_RANGE = { min: 0.005, max: 1 } as const

@@ -64,6 +64,10 @@ The short version:
 - The default drawing is the honest one: masses sliding **along** the axis with
   the coils bunching and stretching. The perpendicular plot is one toggle away
   when you want to read a mode shape off the screen.
+- **Seismograph pens**: one per mass, time running up the pane, each deflecting
+  exactly as its node does. A disturbance entering one end sweeps across them as
+  a diagonal — a travelling wave seen directly — while a standing wave puts every
+  pen in step and leaves the mode's own nodes flat.
 - Computed natural frequencies match the analytical dispersion relation to
   **2.9 × machine epsilon**.
 

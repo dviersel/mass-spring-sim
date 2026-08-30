@@ -18,6 +18,7 @@ import type { ChainSpec } from '../../core/chain'
 import { isSilent } from '../../core/signal'
 import type { ViewSettings } from '../view'
 import { COLORS, prepare } from './theme'
+import { drawSeismographs, type NodeTraceBuffer } from './seismograph'
 
 export interface ChainFrame {
   readonly spec: ChainSpec
@@ -26,10 +27,19 @@ export interface ChainFrame {
   readonly view: ViewSettings
   /** Reference shape to overlay, one entry per node, already scaled to metres. */
   readonly overlay: Float64Array | null
+  /** Per-node history for the seismograph pens, or null when not recording. */
+  readonly history: NodeTraceBuffer | null
+  /** Current simulated time, seconds. */
+  readonly now: number
 }
 
 const PAD_X = 46
 const PAD_Y = 26
+/**
+ * Room left under the spring for its node labels once it moves down to make
+ * space for the traces.
+ */
+const SEISMOGRAPH_FOOT = 34
 
 interface Layout {
   readonly axisPxPerMetre: number
@@ -37,6 +47,21 @@ interface Layout {
   readonly originX: number
   readonly axisY: number
   readonly span: number
+}
+
+/**
+ * Whether the seismograph pens are drawn.
+ *
+ * They need the vertical axis for time, which the perpendicular drawing has
+ * already spent on displacement -- so they belong to the inline drawing, where
+ * a mass moves horizontally and the pen can deflect the same way it does.
+ */
+export function seismographActive(frame: ChainFrame): boolean {
+  return frame.view.seismograph && !isPerpendicular(frame) && frame.history !== null
+}
+
+function isPerpendicular(frame: ChainFrame): boolean {
+  return frame.spec.motionMode === 'transverse' || frame.view.orientation === 'perpendicular'
 }
 
 function layout(frame: ChainFrame, width: number, height: number): Layout {
@@ -52,7 +77,12 @@ function layout(frame: ChainFrame, width: number, height: number): Layout {
     // sixty times life size on this drawing.
     displacementPxPerMetre: axisPxPerMetre * frame.view.displacementExaggeration,
     originX: PAD_X,
-    axisY: height / 2,
+    // With pens running, the spring sits low and hands the rest of the pane to
+    // the traces; otherwise it takes the middle so displacement has room either
+    // side of rest.
+    axisY: seismographActive(frame)
+      ? height - PAD_Y - SEISMOGRAPH_FOOT
+      : height / 2,
     span,
   }
 }
@@ -74,12 +104,27 @@ export function drawChain(canvas: HTMLCanvasElement, frame: ChainFrame): void {
 
   drawRestAxis(ctx, frame, l, width, height)
 
+  // Pens first, so the chain itself is drawn over its own history rather than
+  // under it.
+  if (seismographActive(frame) && frame.history !== null) {
+    drawSeismographs(ctx, {
+      buffer: frame.history,
+      now: frame.now,
+      window: frame.view.traceWindow,
+      nodeCount: frame.spec.nodes.length,
+      restX: (i) => axisX(frame, l, i),
+      displacementPxPerMetre: l.displacementPxPerMetre,
+      baselineY: l.axisY,
+      topY: PAD_Y,
+      tracedNode: frame.view.tracedNode,
+    })
+  }
+
   // Transverse masses genuinely move across the axis, so the inline drawing is
   // not merely less readable there -- it is wrong. Enforced here rather than
   // relying on the control being disabled, so no stale view setting can produce
   // a picture that misrepresents the physics.
-  const perpendicular =
-    frame.spec.motionMode === 'transverse' || frame.view.orientation === 'perpendicular'
+  const perpendicular = isPerpendicular(frame)
   if (perpendicular) {
     drawPerpendicular(ctx, frame, l, height)
   } else {
@@ -104,6 +149,18 @@ function drawRestAxis(
   ctx.lineTo(width - PAD_X + 12, l.axisY)
   ctx.stroke()
   ctx.restore()
+
+  // With the pens running, the vertical guides are the pens' own baselines and
+  // the labels belong under the spring rather than at the foot of the pane.
+  if (seismographActive(frame)) {
+    ctx.fillStyle = COLORS.dim
+    ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace'
+    ctx.textAlign = 'center'
+    for (let i = 0; i < frame.spec.nodes.length; i++) {
+      ctx.fillText(String(i), axisX(frame, l, i), l.axisY + 24)
+    }
+    return
+  }
 
   // A faint guide at every node's rest position. These connect the index
   // labels to the chain, and reading a standing wave off the plot is much

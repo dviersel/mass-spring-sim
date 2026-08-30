@@ -16,6 +16,7 @@ import type { ModeSummary } from '../core/eigen/modal'
 import { drawChain } from './canvas/chainView'
 import { drawParticipation } from './canvas/participation'
 import { TraceBuffer, drawTrace } from './canvas/trace'
+import { NodeTraceBuffer } from './canvas/seismograph'
 import type { ViewSettings } from './view'
 
 export interface RunnerStats {
@@ -52,6 +53,8 @@ export class Runner {
   private lastTimestamp: number | null = null
 
   private trace = new TraceBuffer()
+  /** Whole-chain history for the seismograph pens. */
+  private history: NodeTraceBuffer
   private lastTraceSample = -Infinity
 
   private displacements: Float64Array
@@ -70,6 +73,7 @@ export class Runner {
   ) {
     this.simulation = new Simulation(spec)
     this.view = view
+    this.history = new NodeTraceBuffer(spec.nodes.length)
     this.displacements = new Float64Array(spec.nodes.length)
     this.amplitudes = new Float64Array(this.simulation.dof)
   }
@@ -98,6 +102,9 @@ export class Runner {
   }
 
   setView(view: ViewSettings): void {
+    // The single-node trace is recorded for one node at one resolution, so
+    // changing either invalidates it. The seismograph history holds every node
+    // and survives both.
     if (view.tracedNode !== this.view.tracedNode || view.traceWindow !== this.view.traceWindow) {
       this.trace.clear()
       this.lastTraceSample = -Infinity
@@ -110,6 +117,9 @@ export class Runner {
     if (this.displacements.length !== spec.nodes.length) {
       this.displacements = new Float64Array(spec.nodes.length)
     }
+    // A resize clears the pens: past samples describe a chain with a different
+    // number of nodes and cannot be replotted against this one.
+    this.history.resize(spec.nodes.length)
     if (this.amplitudes.length !== this.simulation.dof) {
       this.amplitudes = new Float64Array(this.simulation.dof)
       this.overlay = null
@@ -119,6 +129,7 @@ export class Runner {
   reset(): void {
     this.simulation.reset()
     this.trace.clear()
+    this.history.clear()
     this.lastTraceSample = -Infinity
   }
 
@@ -126,6 +137,7 @@ export class Runner {
   startFromMode(mode: number, amplitude: number): void {
     this.simulation.setStateFromMode(mode - 1, amplitude)
     this.trace.clear()
+    this.history.clear()
     this.lastTraceSample = -Infinity
   }
 
@@ -173,6 +185,7 @@ export class Runner {
         this.lastTraceSample = sim.time
         sim.nodeDisplacements(this.displacements)
         this.trace.push(sim.time, this.displacements[this.view.tracedNode] ?? 0)
+        this.history.push(sim.time, this.displacements)
       })
     }
 
@@ -195,6 +208,8 @@ export class Runner {
         displacements: this.displacements,
         view: this.view,
         overlay: this.overlay,
+        history: this.history,
+        now: sim.time,
       })
     }
 
