@@ -2,6 +2,13 @@
   "name": "mass-spring-sim",
   "private": true,
   "version": "0.1.0",
+  "description": "Interactive simulation of a damped mass-spring chain: free or driven nodes, four excitation mechanisms, live modal analysis.",
+  "license": "MIT",
+  "author": "Dylan van Iersel",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dviersel/mass-spring-sim.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

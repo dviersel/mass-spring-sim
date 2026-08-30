@@ -88,3 +88,7 @@ src/core/   the simulation — no UI, no rendering, no browser API, no dependenc
 src/ui/     React controls, Canvas rendering, the frame loop, unit exaggeration
 test/       headless tests, including both analytical validations
 ```
+
+## License
+
+[MIT](LICENSE) © Dylan van Iersel
