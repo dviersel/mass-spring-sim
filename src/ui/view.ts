@@ -66,7 +66,9 @@ export const DEFAULT_VIEW: ViewSettings = {
   tracedNode: 3,
   traceWindow: 2.5,
   overlayMode: null,
-  seismograph: 'ribbon',
+  // Pens rather than ribbon: the individual traces are the readable form,
+  // and the ribbon is a step away when the chain should read as one surface.
+  seismograph: 'pens',
 }
 
 export const TIME_SCALE_RANGE = { min: 0.005, max: 1 } as const
