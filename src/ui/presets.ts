@@ -62,8 +62,12 @@ export function transverseChain(): ChainSpec {
   })
 }
 
-/** What the app opens with. */
-export const initialChain = transverseChain
+/**
+ * What the app opens with: the longitudinal regime, motion in line with the
+ * spring. The transverse regime is a scenario and a switch, not the starting
+ * point.
+ */
+export const initialChain = defaultChain
 
 /** Undamped natural frequencies of a spec, Hz, ascending. */
 export function naturalFrequenciesHz(spec: ChainSpec): number[] {
@@ -100,7 +104,7 @@ export const PRESETS: readonly Preset[] = [
   {
     id: 'single-mass',
     name: 'Simplest case: one free mass',
-    hint: 'Three nodes, two driven, one unknown between them — the whole system in miniature. One mode, one frequency, one bar. Nothing about the code changes between this and the full chain: the degree-of-freedom count simply follows from which nodes are free. Longitudinal, so it also shows the regime switch.',
+    hint: 'Three nodes, two driven, one unknown between them — the whole system in miniature. One mode, one frequency, one bar. Nothing about the code changes between this and the full chain: the degree-of-freedom count simply follows from which nodes are free.',
     build: () => ({
       spec: setNodeMotion(
         uniformChain({
@@ -120,7 +124,7 @@ export const PRESETS: readonly Preset[] = [
   {
     id: 'transverse',
     name: 'Transverse: a plucked string',
-    hint: 'The default regime, swept through its whole band. Masses move across the spring, restored by tension rather than by stiffness — drag the stiffness and nothing moves, drag the tension and the whole thing retunes as the square root. Tension is set so the frequencies land exactly on the longitudinal ones: same spectrum, entirely different mechanism. A slack string has no transverse modes at all.',
+    hint: 'The other regime: masses moving across the spring rather than along it, restored by tension instead of stiffness. Drag the stiffness and nothing moves; drag the tension and the whole thing retunes as the square root. Tension is set so the frequencies land exactly on the longitudinal ones — same spectrum, entirely different mechanism. A slack string has no transverse modes at all.',
     build: () => ({
       spec: setNodeMotion(
         transverseChain(),

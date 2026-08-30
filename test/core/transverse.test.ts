@@ -280,13 +280,17 @@ describe('switching regimes always leaves a chain the physics can describe', () 
     }
   })
 
-  it('opens in the transverse regime, ready to run', () => {
+  it('opens in the longitudinal regime, ready to run', () => {
     const spec = initialChain()
-    expect(spec.motionMode).toBe('transverse')
-    expect(spec.tension).toBeGreaterThan(0)
+    expect(spec.motionMode).toBe('longitudinal')
+    // Carrying no tension is correct here, not an oversight: longitudinal
+    // motion is restored by the spring's own stiffness. The switch supplies a
+    // tension if and when the transverse regime needs one.
+    expect(spec.totalStiffness).toBeGreaterThan(0)
     expect(validateChain(spec)).toEqual([])
     const sim = new Simulation(spec)
     expect(sim.dof).toBe(NODE_COUNT - 2)
     expect(() => sim.advance(0.05)).not.toThrow()
+    expect(validateChain(setMotionMode(spec, 'transverse'))).toEqual([])
   })
 })

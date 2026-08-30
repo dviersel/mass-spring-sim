@@ -41,8 +41,13 @@ export const DEFAULT_VIEW: ViewSettings = {
   // as roughly one hertz on screen -- slow enough to follow, fast enough that a
   // resonance still builds while you watch.
   timeScale: 0.15,
-  displacementExaggeration: 60,
-  orientation: 'perpendicular',
+  // Suited to the inline drawing, where displacement competes with the node
+  // spacing itself: at 1 m over 10 segments a millimetre of motion reads as a
+  // useful fraction of a segment here, whereas the exaggeration the
+  // perpendicular plot can carry would send neighbours straight through each
+  // other.
+  displacementExaggeration: 22,
+  orientation: 'inline',
   tracedNode: 3,
   traceWindow: 1.5,
   overlayMode: null,

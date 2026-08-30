@@ -206,6 +206,23 @@ function drawInline(
     ctx.stroke()
   }
 
+  // The reference shape, as ghost positions along the axis. Drawn here as well
+  // as in the perpendicular view, so selecting a mode overlay never silently
+  // does nothing just because of which drawing is showing.
+  if (frame.overlay !== null) {
+    ctx.save()
+    ctx.strokeStyle = COLORS.overlay
+    ctx.globalAlpha = 0.55
+    ctx.lineWidth = 1.5
+    for (let i = 0; i < n; i++) {
+      const x = axisX(frame, l, i) + (frame.overlay[i] as number) * l.displacementPxPerMetre
+      ctx.beginPath()
+      ctx.arc(x, l.axisY, 8.5, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+
   for (let i = 0; i < n; i++) {
     drawNode(ctx, frame, positions[i] as number, l.axisY, i, height)
   }
