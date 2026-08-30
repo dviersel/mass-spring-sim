@@ -109,7 +109,7 @@ describe('single free node between two driven ones', () => {
     // Two segments pull on the one free mass, so omega = sqrt(2k/m).
     const expected = Math.sqrt((2 * segmentStiffness(spec, 0)) / MASS)
     expect(sim.dof).toBe(1)
-    expect(sim.undampedModes.omega[0]).toBeCloseTo(expected, 9)
+    expect(sim.naturalFrequencies[0]).toBeCloseTo(expected, 9)
   })
 
   it('reproduces the analytical damped free decay', () => {
@@ -305,8 +305,8 @@ describe('modal initial conditions stay in their own mode', () => {
     // the simulation's own clock tests the frequency directly, rather than
     // testing whether a whole number of fixed steps happens to land on a
     // period boundary -- it does not, and that rounding would swamp the result.
-    const omega = sim.undampedModes.omega[mode] as number
-    const shape = sim.undampedModes.shapes
+    const omega = sim.naturalFrequencies[mode] as number
+    const shape = sim.modeShapes
     const { dof, freeIndices } = sim.chainMatrices
 
     let peakShape = 0

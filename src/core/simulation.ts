@@ -24,7 +24,7 @@ import {
 } from './chain'
 import { assembleForceVector, createForceScratch, type ForceScratch } from './forces'
 import { Rk4Workspace, SubstepAccumulator, rk4Step, suggestTimestep } from './integrate'
-import { undampedModes, type UndampedModes } from './eigen/jacobi'
+import { analyseModes, type ModalAnalysis } from './eigen/modal'
 import { evaluateSignal } from './signal'
 
 export interface SimulationOptions {
@@ -36,7 +36,9 @@ export interface SimulationOptions {
 export class Simulation {
   private spec: ChainSpec
   private matrices: ChainMatrices
-  private modes: UndampedModes
+  private analysis: ModalAnalysis
+  /** Undamped angular frequencies, cached for the per-frame participation maths. */
+  private omega: Float64Array
 
   private x: Vec
   private v: Vec
@@ -56,7 +58,8 @@ export class Simulation {
     assertValidChain(spec)
     this.spec = spec
     this.matrices = assembleChain(spec)
-    this.modes = undampedModes(this.matrices.Mff, this.matrices.Kff)
+    this.analysis = analyseModes(this.matrices.Mff, this.matrices.Cff, this.matrices.Kff)
+    this.omega = Float64Array.from(this.analysis.modes, (mode) => mode.omega)
     this.stiffnessIsTimeVarying = hasTimeVaryingStiffness(spec)
 
     const dof = this.matrices.dof
@@ -103,8 +106,18 @@ export class Simulation {
    * still worth showing as a reference frame -- parametric resonance is read
    * against them -- but callers must mark them as such.
    */
-  get undampedModes(): UndampedModes {
-    return this.modes
+  get modalAnalysis(): ModalAnalysis {
+    return this.analysis
+  }
+
+  /** Undamped natural angular frequencies, rad/s, ascending. */
+  get naturalFrequencies(): Float64Array {
+    return this.omega
+  }
+
+  /** Real, mass-normalised mode shapes. Column r is mode r. */
+  get modeShapes() {
+    return this.analysis.shapes
   }
 
   /** False once any segment modulates its stiffness. */
@@ -117,8 +130,7 @@ export class Simulation {
   }
 
   private maxOmega(): number {
-    const omega = this.modes.omega
-    return omega.length === 0 ? 0 : (omega[omega.length - 1] as number)
+    return this.omega.length === 0 ? 0 : (this.omega[this.omega.length - 1] as number)
   }
 
   /** A timestep resolving the fastest mode, for the current chain. */
@@ -143,7 +155,8 @@ export class Simulation {
 
     this.spec = next
     this.matrices = assembleChain(next)
-    this.modes = undampedModes(this.matrices.Mff, this.matrices.Kff)
+    this.analysis = analyseModes(this.matrices.Mff, this.matrices.Cff, this.matrices.Kff)
+    this.omega = Float64Array.from(this.analysis.modes, (mode) => mode.omega)
     this.stiffnessIsTimeVarying = hasTimeVaryingStiffness(next)
 
     const dof = this.matrices.dof
@@ -184,12 +197,13 @@ export class Simulation {
     const dof = this.matrices.dof
     if (dof === 0 || index < 0 || index >= dof) return
 
+    const shapes = this.analysis.shapes
     let peak = 0
-    for (let i = 0; i < dof; i++) peak = Math.max(peak, Math.abs(this.modes.shapes.get(i, index)))
+    for (let i = 0; i < dof; i++) peak = Math.max(peak, Math.abs(shapes.get(i, index)))
     if (peak === 0) return
 
     const scale = peakDisplacement / peak
-    for (let i = 0; i < dof; i++) this.x.set(i, scale * this.modes.shapes.get(i, index))
+    for (let i = 0; i < dof; i++) this.x.set(i, scale * shapes.get(i, index))
     this.v.fill(0)
     this.simTime = 0
     this.clock.reset()
@@ -271,20 +285,21 @@ export class Simulation {
     const dof = this.matrices.dof
     const result = out ?? new Float64Array(dof)
     const { Mff } = this.matrices
+    const shapes = this.analysis.shapes
 
     for (let r = 0; r < dof; r++) {
       let q = 0
       let qDot = 0
       let peakShape = 0
       for (let i = 0; i < dof; i++) {
-        const phi = this.modes.shapes.get(i, r)
+        const phi = shapes.get(i, r)
         const m = Mff.get(i, i)
         q += phi * m * this.x.get(i)
         qDot += phi * m * this.v.get(i)
         peakShape = Math.max(peakShape, Math.abs(phi))
       }
-      const omega = this.modes.omega[r] as number
-      const envelope = omega > 0 ? Math.hypot(q, qDot / omega) : Math.abs(q)
+      const omegaR = this.omega[r] as number
+      const envelope = omegaR > 0 ? Math.hypot(q, qDot / omegaR) : Math.abs(q)
       result[r] = envelope * peakShape
     }
     return result
