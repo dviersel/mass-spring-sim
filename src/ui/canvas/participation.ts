@@ -118,3 +118,21 @@ export function drawParticipation(
 
   ctx.globalAlpha = 1
 }
+
+/**
+ * Which bar sits under a point, or null if none does.
+ *
+ * Shares the layout constants above rather than re-deriving them, so the hit
+ * target cannot drift away from what is drawn. `x` is in CSS pixels relative to
+ * the canvas, which is what a bounding-rect offset gives.
+ */
+export function barAt(x: number, width: number, count: number): number | null {
+  if (count <= 0) return null
+  const plotWidth = width - PAD_LEFT - PAD_RIGHT
+  if (plotWidth <= 0) return null
+
+  const slot = plotWidth / count
+  const index = Math.floor((x - PAD_LEFT) / slot)
+  if (index < 0 || index >= count) return null
+  return index
+}

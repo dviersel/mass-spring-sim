@@ -87,7 +87,10 @@ These are easy to break in ways tests elsewhere will not catch.
 
 - **The panes are indexed differently.** Seismograph pens are per *node*;
   participation bars are per *mode*, one per degree of freedom. They share a hue
-  ramp deliberately, so both axes are named on screen.
+  ramp deliberately, so both axes are named on screen. Clicking bar *n* traces
+  node *n*, which crosses the two indexings on purpose: it is a shortcut to the
+  node of that number, not a claim that mode *n* lives on node *n*. Do not
+  "correct" it.
 
 ## Testing
 

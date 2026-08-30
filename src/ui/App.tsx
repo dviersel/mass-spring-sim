@@ -23,6 +23,7 @@ import {
   silenceExcitations,
 } from '../core/edit'
 import { isSilent } from '../core/signal'
+import { barAt } from './canvas/participation'
 import { Runner, type RunnerStats } from './runner'
 import { PRESETS, initialChain } from './presets'
 import {
@@ -217,7 +218,29 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
           </div>
           <div className="bottom">
             <div className="canvas-wrap short-canvas">
-              <canvas ref={participationCanvas} />
+              <canvas
+                ref={participationCanvas}
+                className="clickable"
+                title="Click a bar to trace the node of that number"
+                onClick={(event) => {
+                  const canvas = event.currentTarget
+                  const bounds = canvas.getBoundingClientRect()
+                  const bar = barAt(
+                    event.clientX - bounds.left,
+                    bounds.width,
+                    stats?.modes.length ?? 0,
+                  )
+                  if (bar === null) return
+                  // Bars are numbered from one, nodes from zero, so the bar
+                  // labelled n names node n. Clamped because the two are
+                  // counted differently -- a chain can have fewer nodes than it
+                  // has modes only in degenerate cases, but the clamp costs
+                  // nothing and a stale click must not point off the end.
+                  patchView({
+                    tracedNode: Math.min(bar + 1, spec.nodes.length - 1),
+                  })
+                }}
+              />
               <div className="caption right">modal participation</div>
             </div>
             <div className="canvas-wrap short-canvas">

@@ -319,3 +319,5 @@ button.primary .hint { opacity: 0.95; }
 .theme-switch button + button { border-left: 1px solid var(--border); }
 .theme-switch button:hover { background: var(--row-hover); color: var(--muted); }
 .theme-switch button.active { background: var(--panel-2); color: var(--text); }
+
+.canvas-wrap canvas.clickable { cursor: pointer; }
