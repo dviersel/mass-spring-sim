@@ -16,7 +16,7 @@
 import type { Vec } from './linalg'
 import { Vec as VecImpl } from './linalg'
 import type { ChainMatrices } from './assemble'
-import { type ChainSpec, nodeAt, segmentAt, segmentCount } from './chain'
+import { type ChainSpec, actuatorsApply, nodeAt, segmentAt, segmentCount } from './chain'
 import { evaluateSignal, isSilent } from './signal'
 
 export interface ForceScratch {
@@ -53,8 +53,11 @@ export function assembleForceVector(
   // two end nodes apart. Stiffness and damping come from the matrices rather
   // than being recomputed, so these terms cannot drift out of step with K and C
   // when stiffness is time-varying.
+  //
+  // Only in the longitudinal regime: a rest-length change acts along the
+  // segment's own axis, which transversely is not a displacement at all.
   const nSeg = segmentCount(spec)
-  for (let i = 0; i < nSeg; i++) {
+  for (let i = 0; actuatorsApply(spec) && i < nSeg; i++) {
     const actuator = segmentAt(spec, i).actuator
     if (isSilent(actuator)) continue
 

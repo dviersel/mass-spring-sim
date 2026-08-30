@@ -190,6 +190,8 @@ describe('non-proportional damping is detected, not hidden', () => {
         force: { kind: 'off' as const },
       })),
       segments: positions.slice(1).map(() => quietSegment()),
+      motionMode: 'longitudinal',
+      tension: 0,
       totalStiffness: 100,
       totalDamping: 0.5,
     }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
+  actuatorsApply,
   hasTimeVaryingStiffness,
   segmentDamping,
   segmentLength,
@@ -13,8 +14,10 @@ import {
   setNodeDriven,
   setNodeForce,
   setNodeMass,
+  setMotionMode,
   setNodeMotion,
   setSegmentActuator,
+  setTension,
   setSegmentStiffnessModulation,
   setTotals,
   silenceExcitations,
@@ -106,6 +109,7 @@ export function App(): ReactNode {
 
   const now = stats?.time ?? 0
   const timeVarying = useMemo(() => hasTimeVaryingStiffness(spec), [spec])
+  const transverse = spec.motionMode === 'transverse'
 
   const patchView = useCallback((patch: Partial<ViewSettings>) => {
     setView((current) => ({ ...current, ...patch }))
@@ -178,9 +182,11 @@ export function App(): ReactNode {
           <div className="canvas-wrap chain-canvas">
             <canvas ref={chainCanvas} />
             <div className="caption">
-              {view.orientation === 'transverse'
-                ? 'transverse plot — displacement is longitudinal, drawn perpendicular for legibility'
-                : 'longitudinal view — true motion, along the spring axis'}
+              {transverse
+                ? 'transverse motion — masses move across the spring, restored by tension. This is a literal picture.'
+                : view.orientation === 'perpendicular'
+                  ? 'longitudinal motion, plotted perpendicular for legibility — the masses really move along the axis'
+                  : 'longitudinal motion, drawn along the spring axis — true, and harder to read'}
             </div>
           </div>
           <div className="bottom">
@@ -271,15 +277,23 @@ export function App(): ReactNode {
             />
             <div className="row">
               <label className="field">
-                <span>orientation</span>
+                <span>{transverse ? 'drawing (fixed)' : 'drawing'}</span>
                 <select
-                  value={view.orientation}
+                  value={transverse ? 'perpendicular' : view.orientation}
+                  disabled={transverse}
+                  title={
+                    transverse
+                      ? 'Transverse masses genuinely move across the axis, so only this drawing is truthful.'
+                      : undefined
+                  }
                   onChange={(e) =>
                     patchView({ orientation: e.target.value as ViewSettings['orientation'] })
                   }
                 >
-                  <option value="transverse">transverse plot</option>
-                  <option value="longitudinal">longitudinal (true)</option>
+                  <option value="perpendicular">
+                    {transverse ? 'perpendicular (true)' : 'perpendicular (plot)'}
+                  </option>
+                  {!transverse && <option value="inline">inline (true)</option>}
                 </select>
               </label>
               <label className="field">
@@ -308,16 +322,42 @@ export function App(): ReactNode {
 
           <Panel title="Spring">
             <div className="row">
-              <NumberField
-                label="total stiffness"
-                unit="N/m"
-                step={10}
-                min={0.1}
-                value={spec.totalStiffness}
-                onChange={(totalStiffness) =>
-                  setSpec((s) => setTotals(s, { totalStiffness }))
-                }
-              />
+              <label className="field">
+                <span>motion</span>
+                <select
+                  value={spec.motionMode}
+                  onChange={(e) => {
+                    setActivePreset(null)
+                    setSpec((s) =>
+                      setMotionMode(s, e.target.value as ChainSpec['motionMode']),
+                    )
+                  }}
+                >
+                  <option value="longitudinal">longitudinal — in line</option>
+                  <option value="transverse">transverse — perpendicular</option>
+                </select>
+              </label>
+              {transverse ? (
+                <NumberField
+                  label="tension"
+                  unit="N"
+                  step={10}
+                  min={0.1}
+                  value={spec.tension}
+                  onChange={(tension) => setSpec((s) => setTension(s, tension))}
+                />
+              ) : (
+                <NumberField
+                  label="total stiffness"
+                  unit="N/m"
+                  step={10}
+                  min={0.1}
+                  value={spec.totalStiffness}
+                  onChange={(totalStiffness) =>
+                    setSpec((s) => setTotals(s, { totalStiffness }))
+                  }
+                />
+              )}
               <NumberField
                 label="total damping"
                 unit="N·s/m"
@@ -328,10 +368,24 @@ export function App(): ReactNode {
               />
             </div>
             <div className="hint-text">
-              Both are end-to-end properties of the whole spring. Each segment gets
-              <span className="mono"> k·L/Lᵢ</span> and <span className="mono">c·L/Lᵢ</span>,
-              so a short segment is stiffer and more damped in the same proportion —
-              they are pieces of one spring, not ten independent ones.
+              {transverse ? (
+                <>
+                  Transverse motion is restored by <strong>tension</strong>, not by the
+                  spring's own stiffness — which is why a slack string has no transverse
+                  modes at all. Each segment gets{' '}
+                  <span className="mono">T/Lᵢ</span>, so a short segment is stiffer in
+                  the same inverse proportion. Changing the total stiffness now does
+                  nothing; tension is what sets the pitch.
+                </>
+              ) : (
+                <>
+                  Both are end-to-end properties of the whole spring. Each segment gets{' '}
+                  <span className="mono">k·L/Lᵢ</span> and{' '}
+                  <span className="mono">c·L/Lᵢ</span>, so a short segment is stiffer and
+                  more damped in the same proportion — they are pieces of one spring, not
+                  ten independent ones.
+                </>
+              )}
             </div>
             <div className="row">
               <NumberField
@@ -348,7 +402,7 @@ export function App(): ReactNode {
                   setSpec((s) => resizeChain(s, count))
                 }}
               />
-              <div className="hint-text grow">
+              <div className="hint-text full">
                 Nothing here assumes nine masses — the degree-of-freedom count is
                 derived from the chain. Set this to 3 for the simplest case: one
                 free mass between two driven ones.
@@ -497,22 +551,37 @@ export function App(): ReactNode {
                     pushes its two end nodes apart, and a mode feels it only through its own
                     stretch across this segment.
                   </div>
-                  <SignalEditor
-                    value={segment.actuator}
-                    onChange={(actuator) =>
-                      setSpec((s) => setSegmentActuator(s, selectedSegment, actuator))
-                    }
-                    unitScale={1000}
-                    unitLabel="mm"
-                    amplitudeStep={0.1}
-                    now={now}
-                  />
+                  {actuatorsApply(spec) ? (
+                    <SignalEditor
+                      value={segment.actuator}
+                      onChange={(actuator) =>
+                        setSpec((s) => setSegmentActuator(s, selectedSegment, actuator))
+                      }
+                      unitScale={1000}
+                      unitLabel="mm"
+                      amplitudeStep={0.1}
+                      now={now}
+                    />
+                  ) : (
+                    <div className="banner info">
+                      <span className="icon">ℹ</span>
+                      <div>
+                        Not available transversely. Winding a turnbuckle shortens a segment
+                        along its own axis, which does not push its ends sideways — it raises
+                        the tension. That is a stiffness change, so the control below is the
+                        transverse counterpart.
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <div className="hint-text" style={{ marginBottom: 4 }}>
-                    <strong style={{ color: 'var(--modulation)' }}>Stiffness modulation</strong> —
-                    scales this segment's k as <span className="mono">k·(1 + s(t))</span>.
+                    <strong style={{ color: 'var(--modulation)' }}>
+                      {transverse ? 'Tension modulation' : 'Stiffness modulation'}
+                    </strong>{' '}
+                    — scales this segment's {transverse ? 'tension' : 'k'} as{' '}
+                    <span className="mono">{transverse ? 'T·(1 + s(t))' : 'k·(1 + s(t))'}</span>.
                     <span className="warn-text"> This changes K itself and invalidates modal
                     analysis</span>, so it is a separate regime rather than another entry in the
                     force vector.

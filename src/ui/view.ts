@@ -11,7 +11,16 @@
  * pixels, never to the state.
  */
 
-export type Orientation = 'transverse' | 'longitudinal'
+/**
+ * How displacement is DRAWN, which is separate from the direction the masses
+ * actually move. Named for the drawing so it cannot be confused with the
+ * chain's motion regime: 'perpendicular' offsets the chain across the axis,
+ * 'inline' slides the masses along it.
+ *
+ * In the transverse regime only 'perpendicular' is truthful, and the UI holds
+ * it there.
+ */
+export type Orientation = 'perpendicular' | 'inline'
 
 export interface ViewSettings {
   /** Simulated seconds per wall-clock second. Below 1 is slow motion. */
@@ -33,7 +42,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   // resonance still builds while you watch.
   timeScale: 0.15,
   displacementExaggeration: 60,
-  orientation: 'transverse',
+  orientation: 'perpendicular',
   tracedNode: 3,
   traceWindow: 1.5,
   overlayMode: null,

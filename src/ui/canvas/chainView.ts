@@ -1,16 +1,17 @@
 /**
- * The chain animation, in two orientations.
+ * The chain animation.
  *
- * The model is longitudinal: one degree of freedom per node, along the spring
- * axis. That is what makes the analytical dispersion relation hold, and the
- * longitudinal view draws exactly that -- masses sliding along the axis, coils
- * bunching and stretching between them.
+ * What a drawing means depends on the chain's motion regime, and the two must
+ * not be conflated:
  *
- * The transverse view draws the same numbers with displacement perpendicular to
- * the axis. It is a PLOT of a longitudinal quantity, not a picture of the
- * system, and is labelled as such on screen. It exists because standing waves
- * and mode shapes are almost unreadable in the honest view and immediately
- * obvious in this one.
+ *  - In the TRANSVERSE regime the masses really do move across the axis, so
+ *    drawing them offset perpendicular is a literal picture. Only that drawing
+ *    is truthful, and the UI offers no other.
+ *
+ *  - In the LONGITUDINAL regime the masses move along the axis. Drawing them
+ *    inline is the honest picture; drawing the same numbers perpendicular is a
+ *    PLOT, chosen by default because standing waves are almost unreadable
+ *    inline and immediately obvious offset. The caption says which it is.
  */
 
 import type { ChainSpec } from '../../core/chain'
@@ -72,10 +73,17 @@ export function drawChain(canvas: HTMLCanvasElement, frame: ChainFrame): void {
   ctx.fillRect(0, 0, width, height)
 
   drawRestAxis(ctx, frame, l, width, height)
-  if (frame.view.orientation === 'transverse') {
-    drawTransverse(ctx, frame, l, height)
+
+  // Transverse masses genuinely move across the axis, so the inline drawing is
+  // not merely less readable there -- it is wrong. Enforced here rather than
+  // relying on the control being disabled, so no stale view setting can produce
+  // a picture that misrepresents the physics.
+  const perpendicular =
+    frame.spec.motionMode === 'transverse' || frame.view.orientation === 'perpendicular'
+  if (perpendicular) {
+    drawPerpendicular(ctx, frame, l, height)
   } else {
-    drawLongitudinal(ctx, frame, l, height)
+    drawInline(ctx, frame, l, height)
   }
   drawSegmentDecorations(ctx, frame, l, height)
 }
@@ -122,7 +130,7 @@ function nodeY(frame: ChainFrame, l: Layout, i: number): number {
   return l.axisY - (frame.displacements[i] as number) * l.displacementPxPerMetre
 }
 
-function drawTransverse(
+function drawPerpendicular(
   ctx: CanvasRenderingContext2D,
   frame: ChainFrame,
   l: Layout,
@@ -163,7 +171,7 @@ function drawTransverse(
   }
 }
 
-function drawLongitudinal(
+function drawInline(
   ctx: CanvasRenderingContext2D,
   frame: ChainFrame,
   l: Layout,

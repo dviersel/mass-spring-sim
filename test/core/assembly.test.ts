@@ -31,6 +31,8 @@ function unevenChain(): ChainSpec {
       force: { kind: 'off' as const },
     })),
     segments: positions.slice(1).map(() => quietSegment()),
+    motionMode: 'longitudinal',
+    tension: 0,
     totalStiffness: 100,
     totalDamping: 2,
   }

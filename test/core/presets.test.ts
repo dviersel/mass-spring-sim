@@ -268,3 +268,39 @@ describe('resizing the chain', () => {
     expect(sim.modalAmplitudes()).toHaveLength(0)
   })
 })
+
+describe('preset: transverse plucked string', () => {
+  function transversePreset() {
+    const found = PRESETS.find((p) => p.id === 'transverse')
+    if (found === undefined) throw new Error('missing preset')
+    return found.build().spec
+  }
+
+  it('runs in the transverse regime', () => {
+    expect(transversePreset().motionMode).toBe('transverse')
+  })
+
+  it('lands on exactly the longitudinal spectrum, by construction', () => {
+    // Same frequencies from a completely different restoring mechanism. If this
+    // drifts, the preset's central comparison stops being true.
+    const transverse = naturalFrequenciesHz(transversePreset())
+    const longitudinal = naturalFrequenciesHz(defaultChain())
+    expect(transverse).toHaveLength(longitudinal.length)
+    for (let i = 0; i < transverse.length; i++) {
+      expect(transverse[i] as number).toBeCloseTo(longitudinal[i] as number, 9)
+    }
+  })
+
+  it('retunes with tension and ignores stiffness entirely', () => {
+    const base = transversePreset()
+    const stiffer = naturalFrequenciesHz({ ...base, totalStiffness: base.totalStiffness * 8 })
+    const tighter = naturalFrequenciesHz({ ...base, tension: base.tension * 4 })
+    const original = naturalFrequenciesHz(base)
+
+    for (let i = 0; i < original.length; i++) {
+      expect(stiffer[i] as number).toBeCloseTo(original[i] as number, 9)
+      // Frequency goes as sqrt(T), so four times the tension doubles it.
+      expect(tighter[i] as number).toBeCloseTo(2 * (original[i] as number), 9)
+    }
+  })
+})

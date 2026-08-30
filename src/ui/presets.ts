@@ -67,6 +67,13 @@ const SWEEP_SECONDS = 45
  * outruns the screen in a couple of seconds.
  */
 const PUMP_DEPTH = 0.12
+/**
+ * Chosen so the transverse spectrum lands exactly on the longitudinal one:
+ * T/L_segment equals k_total.L_total/L_segment when T = k_total.L_total. Same
+ * frequencies, entirely different mechanism -- which is the point of the
+ * comparison.
+ */
+export const TENSION = TOTAL_STIFFNESS * CHAIN_LENGTH
 
 export const PRESETS: readonly Preset[] = [
   {
@@ -87,6 +94,28 @@ export const PRESETS: readonly Preset[] = [
         chirp(0.0004, SWEEP_LOW, SWEEP_HIGH, SWEEP_SECONDS, 0),
       ),
       view: { timeScale: 0.2, displacementExaggeration: 60, tracedNode: 1 },
+    }),
+  },
+  {
+    id: 'transverse',
+    name: 'Transverse: a plucked string',
+    hint: 'The same chain moving across the spring instead of along it — restored by tension, not by stiffness. Tension is set so the frequencies land exactly on the longitudinal ones: same spectrum, different mechanism. Drag the stiffness and nothing moves; drag the tension and the whole thing retunes. A slack string has no transverse modes at all.',
+    build: () => ({
+      spec: setNodeMotion(
+        uniformChain({
+          nodeCount: NODE_COUNT,
+          length: CHAIN_LENGTH,
+          totalStiffness: TOTAL_STIFFNESS,
+          totalDamping: TOTAL_DAMPING,
+          mass: NODE_MASS,
+          drivenNodes: [0, NODE_COUNT - 1],
+          motionMode: 'transverse',
+          tension: TENSION,
+        }),
+        0,
+        chirp(0.00015, SWEEP_LOW, SWEEP_HIGH, SWEEP_SECONDS, 0),
+      ),
+      view: { timeScale: 0.25, displacementExaggeration: 40, tracedNode: 3 },
     }),
   },
   {

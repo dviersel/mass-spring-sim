@@ -17,6 +17,20 @@
  *    stiffness scales inversely with segment length. Damping follows the same
  *    law, treating the dashpot as distributed viscoelasticity in that same
  *    continuous spring.
+ *
+ * A chain moves in one of two regimes, and they are genuinely different physics
+ * rather than two drawings of the same thing:
+ *
+ *  - LONGITUDINAL, in line with the spring. The restoring force is the spring's
+ *    own stiffness resisting a change of length: k = k_total.L_total/L.
+ *
+ *  - TRANSVERSE, perpendicular to it, as a plucked string moves. The restoring
+ *    force is TENSION resisting a change of angle: k = T/L. The spring's
+ *    stiffness plays no part; a slack string has no transverse modes at all.
+ *
+ * Both land on the same inverse-length law, so one assembly path serves both
+ * and only the numerator differs. The two are not combined: a node carries one
+ * degree of freedom, in whichever direction the regime names.
  */
 
 import { type SignalSpec, OFF, isSilent } from './signal'
@@ -52,12 +66,23 @@ export interface ChainSegment {
   readonly stiffnessModulation: SignalSpec
 }
 
+/**
+ * Which way the masses are free to move.
+ *
+ * `longitudinal` is motion along the spring axis, restored by the spring's own
+ * stiffness. `transverse` is motion perpendicular to it, restored by tension.
+ */
+export type MotionMode = 'longitudinal' | 'transverse'
+
 export interface ChainSpec {
   readonly nodes: readonly ChainNode[]
   /** Exactly `nodes.length - 1` entries. */
   readonly segments: readonly ChainSegment[]
-  /** Stiffness of the whole spring measured end to end, N/m. */
+  readonly motionMode: MotionMode
+  /** Stiffness of the whole spring measured end to end, N/m. Longitudinal only. */
   readonly totalStiffness: number
+  /** Axial tension carried by the spring, N. Transverse only. */
+  readonly tension: number
   /** Damping of the whole spring measured end to end, N.s/m. */
   readonly totalDamping: number
 }
@@ -92,16 +117,37 @@ export function segmentLength(spec: ChainSpec, i: number): number {
 }
 
 /**
- * Nominal segment stiffness, N/m: k = k_total * L_total / L_segment.
+ * Nominal segment stiffness, N/m. "Nominal" means before any time-varying
+ * modulation is applied.
  *
- * Springs in series satisfy 1/k_total = sum(1/k_i), and this law reproduces
- * that exactly for any spacing, equal or not. "Nominal" means before any
- * time-varying stiffness modulation is applied.
+ * Longitudinal: k = k_total * L_total / L. Springs in series satisfy
+ * 1/k_total = sum(1/k_i), and this law reproduces that exactly for any spacing.
+ *
+ * Transverse: k = T / L, the standard taut-string result. A segment at tension
+ * T tilted by a small angle pulls its ends back with force T.dy/L, so a short
+ * segment is stiffer in the same inverse proportion. The spring's own stiffness
+ * does not appear -- transverse restoring force comes from tension alone, which
+ * is why a slack string has no transverse modes.
  */
 export function segmentStiffness(spec: ChainSpec, i: number): number {
   const override = segmentAt(spec, i).stiffnessOverride
   if (override !== undefined) return override
+  if (spec.motionMode === 'transverse') return spec.tension / segmentLength(spec, i)
   return (spec.totalStiffness * totalLength(spec)) / segmentLength(spec, i)
+}
+
+/**
+ * Whether a rest-length actuator can do anything in this regime.
+ *
+ * Winding a turnbuckle shortens a segment along its own axis. Longitudinally
+ * that is a displacement and belongs in the force vector. Transversely it is
+ * not: shortening a segment does not push its ends sideways, it raises the
+ * tension -- which is a stiffness change, and is what the tension modulation
+ * control does. So the actuator is longitudinal-only, and saying so is more
+ * useful than quietly letting it do nothing.
+ */
+export function actuatorsApply(spec: ChainSpec): boolean {
+  return spec.motionMode === 'longitudinal'
 }
 
 /** Nominal segment damping, N.s/m, under the same inverse-length law. */
@@ -157,7 +203,13 @@ export function validateChain(spec: ChainSpec): string[] {
       `expected ${spec.nodes.length - 1} segments for ${spec.nodes.length} nodes, got ${spec.segments.length}`,
     )
   }
-  if (!(spec.totalStiffness > 0)) problems.push('totalStiffness must be positive')
+  if (spec.motionMode === 'transverse') {
+    if (!(spec.tension > 0)) {
+      problems.push('transverse motion needs positive tension: a slack string has no transverse modes')
+    }
+  } else if (!(spec.totalStiffness > 0)) {
+    problems.push('totalStiffness must be positive')
+  }
   if (spec.totalDamping < 0) problems.push('totalDamping must not be negative')
 
   for (let i = 0; i < spec.nodes.length - 1; i++) {
@@ -194,6 +246,10 @@ export interface UniformChainOptions {
   readonly totalStiffness: number
   /** Damping of the whole spring end to end, N.s/m. */
   readonly totalDamping: number
+  /** Defaults to longitudinal. */
+  readonly motionMode?: MotionMode | undefined
+  /** Axial tension, N. Required in the transverse regime. */
+  readonly tension?: number | undefined
   /** Lumped mass at every node, kg. */
   readonly mass: number
   /** Node indices to drive. Defaults to both ends. */
@@ -223,5 +279,12 @@ export function uniformChain(options: UniformChainOptions): ChainSpec {
   const segments: ChainSegment[] = []
   for (let i = 0; i < nodeCount - 1; i++) segments.push(quietSegment())
 
-  return { nodes, segments, totalStiffness, totalDamping }
+  return {
+    nodes,
+    segments,
+    totalStiffness,
+    totalDamping,
+    motionMode: options.motionMode ?? 'longitudinal',
+    tension: options.tension ?? 0,
+  }
 }

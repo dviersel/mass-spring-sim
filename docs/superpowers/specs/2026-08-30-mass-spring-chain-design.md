@@ -19,7 +19,39 @@ driving an interior node splits the chain into two sub-chains that cannot feel
 each other. The degree-of-freedom count follows from the spec and is never
 assumed.
 
-Motion is longitudinal: one degree of freedom per node, along the spring axis.
+### Two motion regimes
+
+A chain moves in one of two regimes. These are different physics, not two
+drawings of the same thing, and they are not combined — a node carries one
+degree of freedom, in whichever direction the regime names.
+
+| | Longitudinal | Transverse |
+|---|---|---|
+| Direction | In line with the spring | Perpendicular to it |
+| Restoring force | The spring's own stiffness resisting a change of **length** | **Tension** resisting a change of angle |
+| Segment stiffness | `k = k_total·L_total/L` | `k = T/L` |
+| Dispersion | `ω_n = 2√(k/m)·sin(nπ/2(N+1))` | `ω_n = 2√(T/mL)·sin(nπ/2(N+1))` |
+| Slack spring | Still has modes | Has **no** modes — `T = 0` is rejected |
+| Rest-length actuator | Applies | Does not (see below) |
+
+Both land on the same inverse-length law, so one assembly path serves both and
+only the numerator differs. Everything else — partitioning, damping, forces,
+prescribed motion, integration, modal analysis — is untouched by the regime.
+
+**The rest-length actuator is longitudinal-only.** Winding a turnbuckle shortens
+a segment along its own axis. Longitudinally that is a displacement and belongs
+in the force vector. Transversely it is not: shortening a segment does not push
+its ends sideways, it raises the tension — which is a stiffness change, and is
+what the tension-modulation control already does. The control is therefore
+withdrawn in the transverse regime with an explanation, rather than left armed
+and silently inert.
+
+**Drawing is kept distinct from motion.** The view's orientation is named
+`perpendicular` / `inline` so it cannot be confused with the regime. In the
+transverse regime only the perpendicular drawing is truthful and the renderer
+enforces it; in the longitudinal regime the perpendicular drawing is a *plot*,
+chosen by default because standing waves are almost unreadable inline, and the
+caption says which it is.
 
 ## Equations
 
@@ -102,6 +134,10 @@ A uniform chain with both ends held has
 `ω_n = 2√(k/m)·sin(nπ / 2(N+1))`. Computed frequencies match to a worst relative
 error of **6.4 × 10⁻¹⁶**, about 2.9 × machine epsilon.
 
+The transverse regime has the same treatment: `ω_n = 2√(T/mL)·sin(nπ/2(N+1))`
+matches to better than 10⁻¹⁴, at every chain size, and a test pins that changing
+the spring stiffness moves a transverse frequency by exactly nothing.
+
 Driving node 5 decouples the chain into two four-mass sub-chains. The same
 formula with N = 4 holds, every frequency appearing exactly twice, and the
 cross-block terms of `K_ff` are exactly zero while `K_fd` retains the node-5
@@ -140,6 +176,7 @@ and their numerics need to be inspectable.
 | Signal library | Sine, chirp, step — all analytically differentiable; no noise |
 | Multiplicity | Any number of driven nodes, forces, actuators, modulators |
 | Presets | A curated set, each demonstrating one phenomenon |
+| Motion regimes | Longitudinal and transverse, switchable, never combined |
 
 ## Testing
 

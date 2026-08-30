@@ -159,3 +159,28 @@ export function resizeChain(spec: ChainSpec, nodeCount: number): ChainSpec {
 
   return { ...spec, nodes, segments }
 }
+
+/**
+ * Switch between the longitudinal and transverse regimes.
+ *
+ * These are different physics, not different drawings, so the chain's own
+ * properties change with them: longitudinal is restored by the spring's
+ * stiffness, transverse by its tension.
+ *
+ * Switching to transverse clears any rest-length actuator. A turnbuckle has no
+ * transverse effect -- shortening a segment raises tension rather than pushing
+ * its ends sideways -- so leaving one armed would show an active control that
+ * silently does nothing.
+ */
+export function setMotionMode(spec: ChainSpec, motionMode: ChainSpec['motionMode']): ChainSpec {
+  if (motionMode === spec.motionMode) return spec
+  const segments =
+    motionMode === 'transverse'
+      ? spec.segments.map((s) => ({ ...s, actuator: OFF }))
+      : spec.segments
+  return { ...spec, motionMode, segments }
+}
+
+export function setTension(spec: ChainSpec, tension: number): ChainSpec {
+  return { ...spec, tension: Math.max(0, tension) }
+}
