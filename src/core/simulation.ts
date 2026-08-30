@@ -314,6 +314,13 @@ export class Simulation {
 
   /** Total mechanical energy of the free degrees of freedom, joules. */
   energy(): number {
+    // In the time-varying regime the stiffness blocks are left wherever the
+    // last RK4 stage put them, which is half a step ahead of the state. Restamp
+    // at the current time so the potential term is evaluated against the K that
+    // actually holds now.
+    if (this.stiffnessIsTimeVarying) {
+      rebuildStiffnessInPlace(this.spec, this.matrices, stiffnessScaleAt(this.spec, this.simTime))
+    }
     const { dof, Mff, Kff } = this.matrices
     let kinetic = 0
     let potential = 0

@@ -201,3 +201,33 @@ describe('non-proportional damping is detected, not hidden', () => {
     }
   })
 })
+
+describe('the state-space solver holds up at larger sizes', () => {
+  // The Francis QR path is the most intricate code in the project, and it grows
+  // as 2N. A 21-node chain means a 38x38 unsymmetric eigenproblem, which is
+  // where a shift or deflation mistake would surface first.
+  it.each([5, 11, 17, 21, 31])('matches the closed form on a %i-node chain', (nodeCount) => {
+    const spec = chain(0.4, nodeCount)
+    const m = assembleChain(spec)
+    const analysis = analyseModes(m.Mff, m.Cff, m.Kff)
+    const alpha = spec.totalDamping / spec.totalStiffness
+
+    expect(analysis.modes).toHaveLength(nodeCount - 2)
+    expect(analysis.classicallyDamped).toBe(true)
+
+    for (const mode of analysis.modes) {
+      expect(Number.isFinite(mode.zeta)).toBe(true)
+      expect(mode.zeta).toBeCloseTo((alpha * mode.omega) / 2, 7)
+    }
+  })
+
+  it('keeps frequencies strictly ordered and positive throughout', () => {
+    const m = assembleChain(chain(0.4, 31))
+    const analysis = analyseModes(m.Mff, m.Cff, m.Kff)
+    for (let r = 1; r < analysis.modes.length; r++) {
+      const previous = analysis.modes[r - 1]
+      const current = analysis.modes[r]
+      expect(current?.omega).toBeGreaterThan(previous?.omega ?? 0)
+    }
+  })
+})
