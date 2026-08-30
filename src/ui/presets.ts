@@ -204,7 +204,7 @@ export const PRESETS: readonly Preset[] = [
   {
     id: 'parametric',
     name: 'Parametric pump at twice mode 1',
-    hint: 'No force and no imposed motion -- only the spring stiffening and softening, at twice the fundamental. Energy still pours in. This is the regime that breaks modal analysis, so the frequency table greys out: those numbers describe a spring that is no longer there.',
+    hint: 'No force and no imposed motion -- only the spring stiffening and softening, at twice the fundamental. Energy still pours in. Expect a single bar: the whole spring is modulated together, so K stays a scalar multiple of itself, the modes stay decoupled, and pumping grows the one mode it was seeded with and no other. Modulate a single segment instead and the modes couple. This is also the regime that breaks modal analysis, so the readouts grey out -- they describe a spring that is no longer there.',
     build: () => {
       const base = defaultChain()
       const fundamental = naturalFrequenciesHz(base)[0] ?? 7

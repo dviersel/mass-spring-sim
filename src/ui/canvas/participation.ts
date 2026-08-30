@@ -98,6 +98,18 @@ export function drawParticipation(
   ctx.fillText(frame.scaleMode === 'log' ? 'peak mm, log' : 'peak mm', 0, 0)
   ctx.restore()
 
+  // The regime warning lives in a banner at the top of the sidebar, which
+  // scrolls away. Greyed bars alone are easy to miss, so the pane says for
+  // itself that its numbers no longer describe the running system.
+  if (frame.stale) {
+    ctx.save()
+    ctx.fillStyle = COLORS.warn
+    ctx.font = '9px ui-monospace, SFMono-Regular, Menlo, monospace'
+    ctx.textAlign = 'left'
+    ctx.fillText('frozen · K is time-varying', PAD_LEFT + 2, PAD_TOP - 4)
+    ctx.restore()
+  }
+
   if (count === 0) {
     ctx.fillStyle = COLORS.muted
     ctx.textAlign = 'center'

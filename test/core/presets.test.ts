@@ -177,6 +177,52 @@ describe('preset: parametric pump', () => {
     expect(sim.energy()).toBeGreaterThan(initial * 4)
   })
 
+  it('grows only the mode it was seeded with, because the whole spring moves together', () => {
+    // Modulating every segment identically makes K(t) a scalar multiple of K,
+    // which preserves its eigenvectors: phi^T K(t) phi stays diagonal and the
+    // modal equations stay decoupled. Seeded in mode 1, the chain stays purely
+    // in mode 1. The single bar on screen is the correct answer, and the hint
+    // says so, so it is pinned here.
+    const { spec, startMode } = preset('parametric')
+    const sim = new Simulation(spec)
+    sim.setStateFromMode((startMode?.mode ?? 1) - 1, startMode?.amplitude ?? 0.0002)
+    run(sim, 6)
+
+    const amplitudes = sim.modalAmplitudes()
+    const seeded = amplitudes[0] as number
+    expect(seeded).toBeGreaterThan((startMode?.amplitude ?? 0.0002) * 2)
+    for (let r = 1; r < amplitudes.length; r++) {
+      // Rounding level, not merely small.
+      expect((amplitudes[r] as number) / seeded).toBeLessThan(1e-12)
+    }
+  })
+
+  it('couples the modes once a single segment is modulated instead', () => {
+    // The other half of the same claim: a non-uniform K(t) is no longer a
+    // scalar multiple, so it mixes the modes and energy leaves the seeded one.
+    const { spec, startMode } = preset('parametric')
+    const fundamental = naturalFrequenciesHz(defaultChain())[0] ?? 7
+    const oneSegment = {
+      ...spec,
+      segments: spec.segments.map((s, i) =>
+        i === 0 ? s : { ...s, stiffnessModulation: { kind: 'off' as const } },
+      ),
+    }
+    const sim = new Simulation(oneSegment)
+    sim.setStateFromMode(0, startMode?.amplitude ?? 0.0002)
+    run(sim, 6)
+
+    const amplitudes = sim.modalAmplitudes()
+    const seeded = amplitudes[0] as number
+    let strongestOther = 0
+    for (let r = 1; r < amplitudes.length; r++) {
+      strongestOther = Math.max(strongestOther, amplitudes[r] as number)
+    }
+    // Far above rounding: real coupling, not numerical noise.
+    expect(strongestOther / seeded).toBeGreaterThan(1e-6)
+    void fundamental
+  })
+
   it('pumps at twice the fundamental and not at the fundamental itself', () => {
     // The signature of parametric resonance: modulating at 2f grows the mode,
     // modulating at f does not. Getting this backwards would make the preset
