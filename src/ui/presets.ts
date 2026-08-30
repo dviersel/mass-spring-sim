@@ -70,6 +70,26 @@ const PUMP_DEPTH = 0.12
 
 export const PRESETS: readonly Preset[] = [
   {
+    id: 'single-mass',
+    name: 'Simplest case: one free mass',
+    hint: 'Three nodes, two driven, one unknown between them — the whole system in miniature. One mode, one frequency, one bar. Nothing about the code changes between this and the full chain: the degree-of-freedom count simply follows from which nodes are free.',
+    build: () => ({
+      spec: setNodeMotion(
+        uniformChain({
+          nodeCount: 3,
+          length: CHAIN_LENGTH,
+          totalStiffness: TOTAL_STIFFNESS,
+          totalDamping: TOTAL_DAMPING,
+          mass: NODE_MASS,
+          drivenNodes: [0, 2],
+        }),
+        0,
+        chirp(0.0004, SWEEP_LOW, SWEEP_HIGH, SWEEP_SECONDS, 0),
+      ),
+      view: { timeScale: 0.2, displacementExaggeration: 60, tracedNode: 1 },
+    }),
+  },
+  {
     id: 'mode-3',
     name: 'Mode 3, released',
     hint: 'A pure standing wave with two interior nodes, ringing down on its own. Nothing drives it, so the participation bars show one bar decaying and the rest at zero.',

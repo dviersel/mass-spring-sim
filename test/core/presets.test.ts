@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { PRESETS, defaultChain, naturalFrequenciesHz } from '../../src/ui/presets'
 import { Simulation } from '../../src/core/simulation'
-import { hasTimeVaryingStiffness } from '../../src/core/chain'
+import { hasTimeVaryingStiffness, segmentStiffness } from '../../src/core/chain'
+import { resizeChain } from '../../src/core/edit'
 
 /**
  * The presets make specific physical claims in their on-screen hints. Each one
@@ -202,5 +203,68 @@ describe('preset: parametric pump', () => {
 
     expect(growth(2 * fundamental)).toBeGreaterThan(4)
     expect(growth(fundamental)).toBeLessThan(1)
+  })
+})
+
+describe('preset: simplest case, one free mass', () => {
+  it('has exactly one degree of freedom and one mode', () => {
+    const found = PRESETS.find((p) => p.id === 'single-mass')
+    if (found === undefined) throw new Error('missing preset')
+    const sim = new Simulation(found.build().spec)
+    expect(sim.dof).toBe(1)
+    expect(sim.modalAnalysis.modes).toHaveLength(1)
+  })
+
+  it('rings at sqrt(2k/m), the analytical answer for two springs on one mass', () => {
+    const found = PRESETS.find((p) => p.id === 'single-mass')
+    if (found === undefined) throw new Error('missing preset')
+    const spec = found.build().spec
+    const sim = new Simulation(spec)
+    const expected = Math.sqrt((2 * segmentStiffness(spec, 0)) / (spec.nodes[1]?.mass ?? 1))
+    expect(sim.naturalFrequencies[0]).toBeCloseTo(expected, 9)
+  })
+})
+
+describe('resizing the chain', () => {
+  it('derives the degree-of-freedom count rather than assuming nine', () => {
+    // Requirement one, exercised end to end: the same code path handles every
+    // size, so this is an ordinary edit and not a special case.
+    let spec = defaultChain()
+    for (const [nodeCount, expectedDof] of [
+      [3, 1],
+      [6, 4],
+      [11, 9],
+      [21, 19],
+      [2, 0],
+    ] as const) {
+      spec = resizeChain(spec, nodeCount)
+      const sim = new Simulation(spec)
+      expect(sim.dof).toBe(expectedDof)
+      expect(sim.modalAnalysis.modes).toHaveLength(expectedDof)
+    }
+  })
+
+  it('matches the analytical dispersion relation at every size', () => {
+    for (const nodeCount of [3, 5, 8, 12, 17]) {
+      const spec = resizeChain(defaultChain(), nodeCount)
+      const sim = new Simulation(spec)
+      const n = nodeCount - 2
+      const k = segmentStiffness(spec, 0)
+      const m = spec.nodes[1]?.mass ?? 1
+      for (let i = 0; i < n; i++) {
+        const expected = 2 * Math.sqrt(k / m) * Math.sin(((i + 1) * Math.PI) / (2 * (n + 1)))
+        expect(sim.naturalFrequencies[i] as number).toBeCloseTo(expected, 6)
+      }
+    }
+  })
+
+  it('survives a chain with no free nodes at all', () => {
+    // Two driven ends and nothing between them is a degenerate but reachable
+    // state from the UI, and it must not throw or produce NaN.
+    const sim = new Simulation(resizeChain(defaultChain(), 2))
+    expect(sim.dof).toBe(0)
+    expect(() => sim.advance(0.1)).not.toThrow()
+    expect(sim.energy()).toBe(0)
+    expect(sim.modalAmplitudes()).toHaveLength(0)
   })
 })

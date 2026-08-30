@@ -8,6 +8,7 @@ import {
 } from '../core/chain'
 import {
   moveNode,
+  resizeChain,
   respaceEvenly,
   setNodeDriven,
   setNodeForce,
@@ -331,6 +332,27 @@ export function App(): ReactNode {
               <span className="mono"> k·L/Lᵢ</span> and <span className="mono">c·L/Lᵢ</span>,
               so a short segment is stiffer and more damped in the same proportion —
               they are pieces of one spring, not ten independent ones.
+            </div>
+            <div className="row">
+              <NumberField
+                label="nodes"
+                step={1}
+                min={2}
+                max={41}
+                digits={2}
+                value={spec.nodes.length}
+                onChange={(count) => {
+                  setSelectedNode(0)
+                  setSelectedSegment(0)
+                  setActivePreset(null)
+                  setSpec((s) => resizeChain(s, count))
+                }}
+              />
+              <div className="hint-text grow">
+                Nothing here assumes nine masses — the degree-of-freedom count is
+                derived from the chain. Set this to 3 for the simplest case: one
+                free mass between two driven ones.
+              </div>
             </div>
             <div className="row">
               <button type="button" onClick={() => setSpec(respaceEvenly)}>

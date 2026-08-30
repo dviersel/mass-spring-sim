@@ -116,3 +116,46 @@ export function moveNode(spec: ChainSpec, index: number, position: number): Chai
   const clamped = Math.min(after.position - margin, Math.max(before.position + margin, position))
   return updateNode(spec, index, { position: clamped })
 }
+
+/**
+ * Rebuild the chain with a different number of nodes, spaced evenly.
+ *
+ * The degree-of-freedom count is derived from the spec, never assumed, so this
+ * is an ordinary edit rather than a special case. It also makes the simplest
+ * interesting configuration reachable: three nodes, one free mass between two
+ * driven ones.
+ *
+ * End nodes keep their driven state and motion; interior nodes start free,
+ * because there is no meaningful correspondence between old and new interior
+ * indices when the count changes.
+ */
+export function resizeChain(spec: ChainSpec, nodeCount: number): ChainSpec {
+  const count = Math.max(2, Math.round(nodeCount))
+  if (count === spec.nodes.length) return spec
+
+  const first = spec.nodes[0]
+  const last = spec.nodes[spec.nodes.length - 1]
+  if (first === undefined || last === undefined) return spec
+  const span = last.position - first.position
+
+  const nodes: ChainNode[] = []
+  for (let i = 0; i < count; i++) {
+    const isFirst = i === 0
+    const isLast = i === count - 1
+    const end = isFirst ? first : last
+    nodes.push({
+      position: first.position + (span * i) / (count - 1),
+      mass: isFirst || isLast ? end.mass : (spec.nodes[1]?.mass ?? end.mass),
+      driven: isFirst || isLast ? end.driven : false,
+      motion: isFirst || isLast ? end.motion : OFF,
+      force: OFF,
+    })
+  }
+
+  const segments: ChainSegment[] = []
+  for (let i = 0; i < count - 1; i++) {
+    segments.push({ actuator: OFF, stiffnessModulation: OFF })
+  }
+
+  return { ...spec, nodes, segments }
+}
