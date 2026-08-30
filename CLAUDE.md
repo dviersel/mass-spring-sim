@@ -85,6 +85,13 @@ These are easy to break in ways tests elsewhere will not catch.
   rejects — and a throw from a React effect unmounts the whole interface. There
   is an error boundary now, but fix the cause, not the symptom.
 
+- **The participation bars default to a logarithmic scale, and should.** A
+  resonant mode routinely runs a hundred times anything else, so linear leaves
+  every other bar sub-pixel and reading as silent. Log keeps a merely-small mode
+  visible while a structurally blocked one -- at rounding level, nine or more
+  decades down -- still shows as exactly nothing. That distinction is what the
+  pane is for; the four-decade window is chosen to preserve it.
+
 - **The panes are indexed differently.** Seismograph pens are per *node*;
   participation bars are per *mode*, one per degree of freedom. They share a hue
   ramp deliberately, so both axes are named on screen. Clicking bar *n* traces

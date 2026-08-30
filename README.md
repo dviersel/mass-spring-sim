@@ -71,6 +71,10 @@ The short version:
   gap with a gradient between neighbouring pen colours, so the chain reads as
   one continuous surface: drive an interior node and the far half of the ribbon
   goes visibly, completely still.
+- **Participation bars on a log scale** by default, so a mode that is merely
+  small stays visible while one that structurally cannot respond still reads as
+  exactly nothing — a resonant mode is easily a hundred times the rest, which on
+  a linear scale hides everything else.
 - **Light and dark**, with a third setting that follows the system and keeps
   following it. The palette lives in the stylesheet and the canvases read it
   from there, so the drawings and the interface cannot drift apart.

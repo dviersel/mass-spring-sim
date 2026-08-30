@@ -223,6 +223,7 @@ export class Runner {
         amplitudes: this.amplitudes,
         modes: sim.modalAnalysis.modes,
         scale: this.participationScale,
+        scaleMode: this.view.participationScale,
         stale: !sim.modalAnalysisIsValid,
       })
     }

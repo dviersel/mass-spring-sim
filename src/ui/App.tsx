@@ -368,6 +368,20 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
               />
             </div>
             <label className="field">
+              <span>bar scale</span>
+              <select
+                value={view.participationScale}
+                onChange={(e) =>
+                  patchView({
+                    participationScale: e.target.value as ViewSettings['participationScale'],
+                  })
+                }
+              >
+                <option value="log">log (4 decades)</option>
+                <option value="linear">linear</option>
+              </select>
+            </label>
+            <label className="field">
               <span>seismograph</span>
               <select
                 value={perpendicularDrawing ? 'off' : view.seismograph}
@@ -386,6 +400,13 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                 <option value="ribbon">ribbon</option>
               </select>
             </label>
+            <div className="hint-text">
+              A resonant mode routinely runs a hundred times anything else, so on a
+              linear scale every other bar goes sub-pixel and reads as silent. The log
+              scale keeps a merely-small mode visible while a mode that structurally
+              cannot respond still shows as nothing at all — which is the distinction
+              the pane exists to make.
+            </div>
             <div className="hint-text">
               {perpendicularDrawing ? (
                 <>

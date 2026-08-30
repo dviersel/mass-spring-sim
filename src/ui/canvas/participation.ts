@@ -9,7 +9,33 @@
  */
 
 import type { ModeSummary } from '../../core/eigen/modal'
+import type { ParticipationScale } from '../view'
 import { COLORS, seriesColor, prepare, roundedRect } from './theme'
+
+/**
+ * Decades shown below the peak on a logarithmic scale.
+ *
+ * Four is chosen to sit between the two things that must stay distinguishable.
+ * A mode that is merely small during a sweep runs one to three decades down and
+ * has to be visible; a mode that is structurally blocked comes out at rounding
+ * level, nine or more decades down, and has to stay at exactly nothing.
+ */
+const DECADES = 4
+
+/**
+ * Height of a bar as a fraction of the plot, in [0, 1].
+ *
+ * On a linear scale this is just the ratio. On a logarithmic one, anything at
+ * or below `peak / 10^DECADES` -- including a genuine zero -- returns exactly
+ * zero, so a blocked mode still reads as blocked rather than as a short bar.
+ */
+export function barFraction(value: number, peak: number, scale: ParticipationScale): number {
+  if (!(peak > 0) || !(value > 0)) return 0
+  if (scale === 'linear') return Math.min(1.15, value / peak)
+  const decadesDown = Math.log10(peak / value)
+  if (decadesDown >= DECADES) return 0
+  return Math.min(1, 1 - decadesDown / DECADES)
+}
 
 export interface ParticipationFrame {
   /** Peak nodal displacement each mode alone would produce, metres. */
@@ -17,6 +43,7 @@ export interface ParticipationFrame {
   readonly modes: readonly ModeSummary[]
   /** Reference scale, metres. Smoothed by the caller so bars do not jitter. */
   readonly scale: number
+  readonly scaleMode: ParticipationScale
   /** Greyed out when stiffness is time-varying and modal analysis is invalid. */
   readonly stale: boolean
 }
@@ -47,13 +74,20 @@ export function drawParticipation(
   ctx.fillStyle = COLORS.dim
   ctx.font = '9px ui-monospace, SFMono-Regular, Menlo, monospace'
   ctx.textAlign = 'right'
-  for (const fraction of [0, 0.5, 1]) {
+  const gridFractions = frame.scaleMode === 'log' ? [0, 0.25, 0.5, 0.75, 1] : [0, 0.5, 1]
+  for (const fraction of gridFractions) {
     const y = baseline - fraction * plotHeight
     ctx.beginPath()
     ctx.moveTo(PAD_LEFT, y)
     ctx.lineTo(width - PAD_RIGHT, y)
     ctx.stroke()
-    ctx.fillText(`${(fraction * frame.scale * 1000).toFixed(1)}`, PAD_LEFT - 6, y + 3)
+    // Every gridline carries its own value in millimetres, so a decade scale
+    // stays readable as a measurement rather than only as a ranking.
+    const millimetres =
+      frame.scaleMode === 'log'
+        ? frame.scale * 1000 * Math.pow(10, -DECADES * (1 - fraction))
+        : fraction * frame.scale * 1000
+    ctx.fillText(formatMillimetres(millimetres), PAD_LEFT - 6, y + 3)
   }
 
   ctx.save()
@@ -61,7 +95,7 @@ export function drawParticipation(
   ctx.rotate(-Math.PI / 2)
   ctx.textAlign = 'center'
   ctx.fillStyle = COLORS.muted
-  ctx.fillText('peak mm', 0, 0)
+  ctx.fillText(frame.scaleMode === 'log' ? 'peak mm, log' : 'peak mm', 0, 0)
   ctx.restore()
 
   if (count === 0) {
@@ -79,8 +113,7 @@ export function drawParticipation(
   for (let r = 0; r < count; r++) {
     const centre = PAD_LEFT + slot * (r + 0.5)
     const value = frame.amplitudes[r] as number
-    const fraction = frame.scale > 0 ? Math.min(1.15, value / frame.scale) : 0
-    const barHeight = fraction * plotHeight
+    const barHeight = barFraction(value, frame.scale, frame.scaleMode) * plotHeight
 
     ctx.fillStyle = COLORS.grid
     roundedRect(ctx, centre - barWidth / 2, PAD_TOP, barWidth, plotHeight, 3)
@@ -135,4 +168,11 @@ export function barAt(x: number, width: number, count: number): number | null {
   const index = Math.floor((x - PAD_LEFT) / slot)
   if (index < 0 || index >= count) return null
   return index
+}
+
+function formatMillimetres(value: number): string {
+  if (value === 0) return '0'
+  if (value >= 1) return value.toFixed(1)
+  if (value >= 0.01) return value.toFixed(2)
+  return value.toExponential(0)
 }

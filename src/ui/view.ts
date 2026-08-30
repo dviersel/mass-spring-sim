@@ -47,9 +47,19 @@ export interface ViewSettings {
    * displacement.
    */
   readonly seismograph: SeismographMode
+  /**
+   * How the participation bars are scaled.
+   *
+   * Logarithmic by default. A resonant mode routinely runs a hundred times
+   * anything else, and on a linear scale that leaves every other bar sub-pixel
+   * -- which hides the distinction the pane exists to show, between a mode that
+   * is merely small and one that cannot respond at all.
+   */
+  readonly participationScale: ParticipationScale
 }
 
 export type SeismographMode = 'off' | 'pens' | 'ribbon'
+export type ParticipationScale = 'linear' | 'log'
 
 export const DEFAULT_VIEW: ViewSettings = {
   // Mode 1 sits near 7 Hz and mode 9 near 44 Hz. At 0.15 the fundamental reads
@@ -69,6 +79,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   // Pens rather than ribbon: the individual traces are the readable form,
   // and the ribbon is a step away when the chain should read as one surface.
   seismograph: 'pens',
+  participationScale: 'log',
 }
 
 export const TIME_SCALE_RANGE = { min: 0.005, max: 1 } as const
