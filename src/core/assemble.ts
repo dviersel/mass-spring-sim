@@ -176,3 +176,46 @@ export function stiffnessScaleAt(spec: ChainSpec, t: number): Float64Array | und
 
 /** Floor on the stiffness multiplier, keeping every segment a real spring. */
 export const MIN_STIFFNESS_SCALE = 1e-3
+
+/**
+ * Rebuild only the stiffness blocks in place, for the time-varying regime.
+ *
+ * K is linear in the segment stiffnesses, so restamping is cheap and needs no
+ * allocation -- which matters because this runs at every RK4 stage of every
+ * substep. The stamp pattern is the partitioned form of what `assembleChain`
+ * does globally; `rebuildStiffnessInPlace matches assembleChain` in the test
+ * suite pins the two together.
+ *
+ * Mass and damping are untouched: modulating a segment's stiffness does not
+ * modulate its dashpot.
+ */
+export function rebuildStiffnessInPlace(
+  spec: ChainSpec,
+  matrices: ChainMatrices,
+  stiffnessScale: Float64Array | undefined,
+): void {
+  const { Kff, Kfd, dofOfNode, slotOfNode, effectiveStiffness } = matrices
+  Kff.fill(0)
+  Kfd.fill(0)
+
+  const nSeg = segmentCount(spec)
+  for (let i = 0; i < nSeg; i++) {
+    const scale = stiffnessScale === undefined ? 1 : (stiffnessScale[i] ?? 1)
+    const k = segmentStiffness(spec, i) * scale
+    effectiveStiffness[i] = k
+
+    const lowDof = dofOfNode[i] as number
+    const highDof = dofOfNode[i + 1] as number
+    const lowSlot = slotOfNode[i] as number
+    const highSlot = slotOfNode[i + 1] as number
+
+    if (lowDof >= 0) Kff.add(lowDof, lowDof, k)
+    if (highDof >= 0) Kff.add(highDof, highDof, k)
+    if (lowDof >= 0 && highDof >= 0) {
+      Kff.add(lowDof, highDof, -k)
+      Kff.add(highDof, lowDof, -k)
+    }
+    if (lowDof >= 0 && highSlot >= 0) Kfd.add(lowDof, highSlot, -k)
+    if (highDof >= 0 && lowSlot >= 0) Kfd.add(highDof, lowSlot, -k)
+  }
+}
