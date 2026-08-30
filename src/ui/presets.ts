@@ -25,7 +25,15 @@ export const TOTAL_STIFFNESS = 100 // N/m end to end
 /** Puts mode 1 near 2% of critical: it rings for about a second and builds in a few. */
 export const TOTAL_DAMPING = 0.09 // N.s/m end to end
 export const NODE_MASS = 0.05 // kg
+/**
+ * Chosen so the transverse spectrum lands exactly on the longitudinal one:
+ * T/L_segment equals k_total.L_total/L_segment when T = k_total.L_total. Same
+ * frequencies, entirely different mechanism -- which is the point of the
+ * comparison.
+ */
+export const TENSION = TOTAL_STIFFNESS * CHAIN_LENGTH
 
+/** The longitudinal base chain, and the starting point for most scenarios. */
 export function defaultChain(): ChainSpec {
   return uniformChain({
     nodeCount: NODE_COUNT,
@@ -36,6 +44,26 @@ export function defaultChain(): ChainSpec {
     drivenNodes: [0, NODE_COUNT - 1],
   })
 }
+
+/**
+ * The same chain in the transverse regime, at the tension that reproduces the
+ * longitudinal spectrum exactly.
+ */
+export function transverseChain(): ChainSpec {
+  return uniformChain({
+    nodeCount: NODE_COUNT,
+    length: CHAIN_LENGTH,
+    totalStiffness: TOTAL_STIFFNESS,
+    totalDamping: TOTAL_DAMPING,
+    mass: NODE_MASS,
+    drivenNodes: [0, NODE_COUNT - 1],
+    motionMode: 'transverse',
+    tension: TENSION,
+  })
+}
+
+/** What the app opens with. */
+export const initialChain = transverseChain
 
 /** Undamped natural frequencies of a spec, Hz, ascending. */
 export function naturalFrequenciesHz(spec: ChainSpec): number[] {
@@ -67,19 +95,12 @@ const SWEEP_SECONDS = 45
  * outruns the screen in a couple of seconds.
  */
 const PUMP_DEPTH = 0.12
-/**
- * Chosen so the transverse spectrum lands exactly on the longitudinal one:
- * T/L_segment equals k_total.L_total/L_segment when T = k_total.L_total. Same
- * frequencies, entirely different mechanism -- which is the point of the
- * comparison.
- */
-export const TENSION = TOTAL_STIFFNESS * CHAIN_LENGTH
 
 export const PRESETS: readonly Preset[] = [
   {
     id: 'single-mass',
     name: 'Simplest case: one free mass',
-    hint: 'Three nodes, two driven, one unknown between them — the whole system in miniature. One mode, one frequency, one bar. Nothing about the code changes between this and the full chain: the degree-of-freedom count simply follows from which nodes are free.',
+    hint: 'Three nodes, two driven, one unknown between them — the whole system in miniature. One mode, one frequency, one bar. Nothing about the code changes between this and the full chain: the degree-of-freedom count simply follows from which nodes are free. Longitudinal, so it also shows the regime switch.',
     build: () => ({
       spec: setNodeMotion(
         uniformChain({
@@ -99,19 +120,10 @@ export const PRESETS: readonly Preset[] = [
   {
     id: 'transverse',
     name: 'Transverse: a plucked string',
-    hint: 'The same chain moving across the spring instead of along it — restored by tension, not by stiffness. Tension is set so the frequencies land exactly on the longitudinal ones: same spectrum, different mechanism. Drag the stiffness and nothing moves; drag the tension and the whole thing retunes. A slack string has no transverse modes at all.',
+    hint: 'The default regime, swept through its whole band. Masses move across the spring, restored by tension rather than by stiffness — drag the stiffness and nothing moves, drag the tension and the whole thing retunes as the square root. Tension is set so the frequencies land exactly on the longitudinal ones: same spectrum, entirely different mechanism. A slack string has no transverse modes at all.',
     build: () => ({
       spec: setNodeMotion(
-        uniformChain({
-          nodeCount: NODE_COUNT,
-          length: CHAIN_LENGTH,
-          totalStiffness: TOTAL_STIFFNESS,
-          totalDamping: TOTAL_DAMPING,
-          mass: NODE_MASS,
-          drivenNodes: [0, NODE_COUNT - 1],
-          motionMode: 'transverse',
-          tension: TENSION,
-        }),
+        transverseChain(),
         0,
         chirp(0.00015, SWEEP_LOW, SWEEP_HIGH, SWEEP_SECONDS, 0),
       ),

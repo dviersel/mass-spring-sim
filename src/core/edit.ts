@@ -6,7 +6,7 @@
  * across. Keeping these pure keeps the live-editing path testable without a UI.
  */
 
-import type { ChainNode, ChainSegment, ChainSpec } from './chain'
+import { totalLength, type ChainNode, type ChainSegment, type ChainSpec } from './chain'
 import type { SignalSpec } from './signal'
 import { OFF } from './signal'
 
@@ -174,11 +174,29 @@ export function resizeChain(spec: ChainSpec, nodeCount: number): ChainSpec {
  */
 export function setMotionMode(spec: ChainSpec, motionMode: ChainSpec['motionMode']): ChainSpec {
   if (motionMode === spec.motionMode) return spec
+
   const segments =
     motionMode === 'transverse'
       ? spec.segments.map((s) => ({ ...s, actuator: OFF }))
       : spec.segments
-  return { ...spec, motionMode, segments }
+
+  // Each regime is restored by a quantity the other does not use, and a chain
+  // built for one carries nothing for the other. Zero tension transversely is
+  // not a string that hangs quietly -- it is a system with no restoring force
+  // at all, which the validator rejects outright.
+  //
+  // So seed the missing quantity with the value that reproduces the spectrum
+  // the chain already had: T = k_total.L_total makes T/L equal
+  // k_total.L_total/L segment for segment. Switching regimes then changes the
+  // mechanism and not the pitch, which is both a safe default and the more
+  // interesting comparison.
+  const length = totalLength(spec)
+  const tension =
+    spec.tension > 0 ? spec.tension : spec.totalStiffness * length
+  const totalStiffness =
+    spec.totalStiffness > 0 ? spec.totalStiffness : length > 0 ? spec.tension / length : 1
+
+  return { ...spec, motionMode, tension, totalStiffness, segments }
 }
 
 export function setTension(spec: ChainSpec, tension: number): ChainSpec {

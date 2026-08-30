@@ -24,7 +24,7 @@ import {
 } from '../core/edit'
 import { isSilent } from '../core/signal'
 import { Runner, type RunnerStats } from './runner'
-import { PRESETS, defaultChain } from './presets'
+import { PRESETS, initialChain } from './presets'
 import {
   DEFAULT_VIEW,
   EXAGGERATION_RANGE,
@@ -33,6 +33,7 @@ import {
   toLogSlider,
   type ViewSettings,
 } from './view'
+import { ErrorBoundary } from './ErrorBoundary'
 import { NumberField, Panel, SliderField } from './controls/fields'
 import { SignalEditor } from './controls/SignalEditor'
 
@@ -40,8 +41,8 @@ interface PendingAction {
   readonly startMode?: { readonly mode: number; readonly amplitude: number } | undefined
 }
 
-export function App(): ReactNode {
-  const [spec, setSpec] = useState<ChainSpec>(defaultChain)
+function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
+  const [spec, setSpec] = useState<ChainSpec>(initialChain)
   const [view, setView] = useState<ViewSettings>(DEFAULT_VIEW)
   const [running, setRunning] = useState(true)
   const [stats, setStats] = useState<RunnerStats | null>(null)
@@ -59,7 +60,7 @@ export function App(): ReactNode {
 
   useEffect(() => {
     const runner = new Runner(
-      defaultChain(),
+      initialChain(),
       DEFAULT_VIEW,
       {
         chain: chainCanvas.current,
@@ -144,6 +145,7 @@ export function App(): ReactNode {
 
   const node = spec.nodes[selectedNode]
   const segment = spec.segments[selectedSegment]
+  void onReset
 
   return (
     <div className="app">
@@ -726,5 +728,19 @@ function ModeTable({
         are not proportional to the springs.
       </div>
     </Panel>
+  )
+}
+
+/**
+ * A crash inside the frame loop or an effect would otherwise unmount everything
+ * and leave a black screen. Remounting on reset gives the boundary a genuinely
+ * fresh simulation rather than the state that just failed.
+ */
+export function App(): ReactNode {
+  const [generation, setGeneration] = useState(0)
+  return (
+    <ErrorBoundary key={generation} onReset={() => setGeneration((g) => g + 1)}>
+      <Simulator key={generation} onReset={() => setGeneration((g) => g + 1)} />
+    </ErrorBoundary>
   )
 }

@@ -10,6 +10,7 @@ import {
 } from '../../src/core/chain'
 import { analyseModes } from '../../src/core/eigen/modal'
 import { setMotionMode, setNodeForce, setSegmentActuator } from '../../src/core/edit'
+import { PRESETS, initialChain } from '../../src/ui/presets'
 import { Simulation } from '../../src/core/simulation'
 import { sine, step } from '../../src/core/signal'
 
@@ -207,5 +208,85 @@ describe('the other excitations carry over unchanged', () => {
     const sim = new Simulation(setNodeForce(transverseChain(), 4, step(0.5, 0, 0.05)))
     for (let i = 0; i < Math.round(4 / sim.timestep); i++) sim.step(sim.timestep)
     expect(Math.abs(sim.nodeDisplacements()[4] as number)).toBeGreaterThan(1e-5)
+  })
+})
+
+describe('switching regimes always leaves a chain the physics can describe', () => {
+  // Regression: switching a longitudinal chain to transverse used to carry its
+  // tension of zero across, producing a system with no restoring force. The
+  // validator rejected it, the throw propagated out of a React effect, and the
+  // whole app unmounted to a black screen.
+  it('seeds tension when switching a longitudinal chain to transverse', () => {
+    const longitudinal = uniformChain({
+      nodeCount: NODE_COUNT,
+      length: LENGTH,
+      totalStiffness: 100,
+      totalDamping: 0.09,
+      mass: MASS,
+      drivenNodes: [0, NODE_COUNT - 1],
+    })
+    expect(longitudinal.tension).toBe(0)
+
+    const switched = setMotionMode(longitudinal, 'transverse')
+    expect(switched.tension).toBeGreaterThan(0)
+    expect(validateChain(switched)).toEqual([])
+    expect(() => new Simulation(switched)).not.toThrow()
+  })
+
+  it('picks the tension that preserves the spectrum, so the pitch does not jump', () => {
+    const longitudinal = uniformChain({
+      nodeCount: NODE_COUNT,
+      length: LENGTH,
+      totalStiffness: 100,
+      totalDamping: 0.09,
+      mass: MASS,
+      drivenNodes: [0, NODE_COUNT - 1],
+    })
+    const before = Array.from(new Simulation(longitudinal).naturalFrequencies)
+    const after = Array.from(new Simulation(setMotionMode(longitudinal, 'transverse')).naturalFrequencies)
+    expect(after).toHaveLength(before.length)
+    for (let i = 0; i < before.length; i++) {
+      expect(after[i] as number).toBeCloseTo(before[i] as number, 9)
+    }
+  })
+
+  it('round-trips between regimes without ever becoming invalid', () => {
+    let spec: ChainSpec = uniformChain({
+      nodeCount: 7,
+      length: LENGTH,
+      totalStiffness: 100,
+      totalDamping: 0.09,
+      mass: MASS,
+      drivenNodes: [0, 6],
+    })
+    for (let i = 0; i < 6; i++) {
+      spec = setMotionMode(spec, i % 2 === 0 ? 'transverse' : 'longitudinal')
+      expect(validateChain(spec)).toEqual([])
+      expect(() => new Simulation(spec)).not.toThrow()
+    }
+  })
+
+  it('keeps a tension the user already chose', () => {
+    const tuned = { ...transverseChain(), tension: 42 }
+    const roundTripped = setMotionMode(setMotionMode(tuned, 'longitudinal'), 'transverse')
+    expect(roundTripped.tension).toBe(42)
+  })
+
+  it('every scenario builds a chain the simulation accepts', () => {
+    for (const preset of PRESETS) {
+      const { spec } = preset.build()
+      expect(validateChain(spec), `preset ${preset.id}`).toEqual([])
+      expect(() => new Simulation(spec), `preset ${preset.id}`).not.toThrow()
+    }
+  })
+
+  it('opens in the transverse regime, ready to run', () => {
+    const spec = initialChain()
+    expect(spec.motionMode).toBe('transverse')
+    expect(spec.tension).toBeGreaterThan(0)
+    expect(validateChain(spec)).toEqual([])
+    const sim = new Simulation(spec)
+    expect(sim.dof).toBe(NODE_COUNT - 2)
+    expect(() => sim.advance(0.05)).not.toThrow()
   })
 })

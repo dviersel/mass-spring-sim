@@ -26,7 +26,7 @@ Each scenario in the sidebar shows one thing:
 | Scenario | What to watch |
 |---|---|
 | **Simplest case** | Three nodes, one unknown. The whole system in miniature. |
-| **Transverse** | The same chain moving *across* the spring, restored by tension rather than stiffness. Same spectrum, different mechanism. |
+| **Transverse** | The default regime, swept through its band. Restored by tension rather than stiffness — same spectrum, different mechanism. |
 | **Mode 3, released** | A pure standing wave ringing down. One bar lit, the rest at zero. |
 | **Chirp sweep** | Every resonance lighting up in turn. An end shaker has no blind spot. |
 | **Centre force** | Modes 2, 4, 6 and 8 never respond — the centre is a stationary point of all of them. |
@@ -55,10 +55,12 @@ The short version:
   velocity of an imposed motion, and RK4 asks for it at intermediate times.
 - Segments are pieces of **one** spring: `k = k_total·L_total/L`, and damping
   follows the same law.
-- Two motion regimes, switchable and never combined. **Longitudinal** is in line
-  with the spring, restored by its stiffness. **Transverse** is perpendicular,
-  restored by tension (`k = T/L`) — so a slack string has no transverse modes,
-  and the rest-length actuator has no transverse meaning and is withdrawn there.
+- Two motion regimes, switchable and never combined. **Transverse** (the
+  default) is perpendicular to the spring, restored by tension (`k = T/L`) — so
+  a slack string has no transverse modes, and the rest-length actuator has no
+  transverse meaning and is withdrawn there. **Longitudinal** is in line with
+  the spring, restored by its own stiffness. Switching regimes carries the
+  spectrum across rather than jumping the pitch.
 - Computed natural frequencies match the analytical dispersion relation to
   **2.9 × machine epsilon**.
 

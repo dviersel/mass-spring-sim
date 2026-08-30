@@ -34,6 +34,14 @@ degree of freedom, in whichever direction the regime names.
 | Slack spring | Still has modes | Has **no** modes — `T = 0` is rejected |
 | Rest-length actuator | Applies | Does not (see below) |
 
+The app opens in the transverse regime. Because each regime is restored by a
+quantity the other never uses, switching seeds whichever is missing with the
+value that preserves the spectrum — `T = k_total·L_total` makes `T/L` equal
+`k_total·L_total/L` segment for segment — so a switch changes the mechanism and
+not the pitch. Without that, a longitudinal chain switched to transverse carried
+zero tension into a regime that rejects it, and the resulting throw unmounted
+the whole interface.
+
 Both land on the same inverse-length law, so one assembly path serves both and
 only the numerator differs. Everything else — partitioning, damping, forces,
 prescribed motion, integration, modal analysis — is untouched by the regime.
@@ -176,7 +184,7 @@ and their numerics need to be inspectable.
 | Signal library | Sine, chirp, step — all analytically differentiable; no noise |
 | Multiplicity | Any number of driven nodes, forces, actuators, modulators |
 | Presets | A curated set, each demonstrating one phenomenon |
-| Motion regimes | Longitudinal and transverse, switchable, never combined |
+| Motion regimes | Longitudinal and transverse, switchable, never combined; transverse is the default |
 
 ## Testing
 
