@@ -235,9 +235,16 @@ export class Simulation {
    * The caller converts wall-clock time to simulated time, so the time-scale
    * control lives entirely outside the physics. A raw frame delta must never
    * reach the integrator.
+   *
+   * @param onStep Invoked after each fixed step. Sampling here rather than once
+   *   per frame is what keeps a recorded trace free of aliasing when one frame
+   *   spans many oscillations.
    */
-  advance(simSeconds: number): void {
-    const result = this.clock.drain(simSeconds, () => this.step(this.clock.dt))
+  advance(simSeconds: number, onStep?: (sim: Simulation) => void): void {
+    const result = this.clock.drain(simSeconds, () => {
+      this.step(this.clock.dt)
+      onStep?.(this)
+    })
     this.stepsTaken = result.steps
     this.droppedSeconds = result.droppedSeconds
   }

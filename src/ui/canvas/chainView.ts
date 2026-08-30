@@ -1,0 +1,336 @@
+/**
+ * The chain animation, in two orientations.
+ *
+ * The model is longitudinal: one degree of freedom per node, along the spring
+ * axis. That is what makes the analytical dispersion relation hold, and the
+ * longitudinal view draws exactly that -- masses sliding along the axis, coils
+ * bunching and stretching between them.
+ *
+ * The transverse view draws the same numbers with displacement perpendicular to
+ * the axis. It is a PLOT of a longitudinal quantity, not a picture of the
+ * system, and is labelled as such on screen. It exists because standing waves
+ * and mode shapes are almost unreadable in the honest view and immediately
+ * obvious in this one.
+ */
+
+import type { ChainSpec } from '../../core/chain'
+import { isSilent } from '../../core/signal'
+import type { ViewSettings } from '../view'
+import { COLORS, prepare } from './theme'
+
+export interface ChainFrame {
+  readonly spec: ChainSpec
+  /** Displacement of every node, metres, indexed by node. */
+  readonly displacements: Float64Array
+  readonly view: ViewSettings
+  /** Reference shape to overlay, one entry per node, already scaled to metres. */
+  readonly overlay: Float64Array | null
+}
+
+const PAD_X = 46
+const PAD_Y = 26
+
+interface Layout {
+  readonly axisPxPerMetre: number
+  readonly displacementPxPerMetre: number
+  readonly originX: number
+  readonly axisY: number
+  readonly span: number
+}
+
+function layout(frame: ChainFrame, width: number, height: number): Layout {
+  const nodes = frame.spec.nodes
+  const first = nodes[0]?.position ?? 0
+  const last = nodes[nodes.length - 1]?.position ?? 1
+  const length = Math.max(1e-9, last - first)
+  const span = width - 2 * PAD_X
+  const axisPxPerMetre = span / length
+  return {
+    axisPxPerMetre,
+    // Exaggeration is defined against the axis scale, so "60x" means literally
+    // sixty times life size on this drawing.
+    displacementPxPerMetre: axisPxPerMetre * frame.view.displacementExaggeration,
+    originX: PAD_X,
+    axisY: height / 2,
+    span,
+  }
+}
+
+function axisX(frame: ChainFrame, l: Layout, nodeIndex: number): number {
+  const nodes = frame.spec.nodes
+  const first = nodes[0]?.position ?? 0
+  return l.originX + ((nodes[nodeIndex]?.position ?? 0) - first) * l.axisPxPerMetre
+}
+
+export function drawChain(canvas: HTMLCanvasElement, frame: ChainFrame): void {
+  const surface = prepare(canvas)
+  if (surface === null) return
+  const { ctx, width, height } = surface
+  const l = layout(frame, width, height)
+
+  ctx.fillStyle = COLORS.panel
+  ctx.fillRect(0, 0, width, height)
+
+  drawRestAxis(ctx, frame, l, width, height)
+  if (frame.view.orientation === 'transverse') {
+    drawTransverse(ctx, frame, l, height)
+  } else {
+    drawLongitudinal(ctx, frame, l, height)
+  }
+  drawSegmentDecorations(ctx, frame, l, height)
+}
+
+function drawRestAxis(
+  ctx: CanvasRenderingContext2D,
+  frame: ChainFrame,
+  l: Layout,
+  width: number,
+  height: number,
+): void {
+  ctx.save()
+  ctx.strokeStyle = COLORS.grid
+  ctx.lineWidth = 1
+  ctx.setLineDash([3, 5])
+  ctx.beginPath()
+  ctx.moveTo(PAD_X - 12, l.axisY)
+  ctx.lineTo(width - PAD_X + 12, l.axisY)
+  ctx.stroke()
+  ctx.restore()
+
+  // A faint guide at every node's rest position. These connect the index
+  // labels to the chain, and reading a standing wave off the plot is much
+  // easier when you can see which node each crest sits on.
+  ctx.strokeStyle = COLORS.grid
+  ctx.lineWidth = 1
+  for (let i = 0; i < frame.spec.nodes.length; i++) {
+    const x = axisX(frame, l, i)
+    ctx.beginPath()
+    ctx.moveTo(x, PAD_Y)
+    ctx.lineTo(x, height - PAD_Y + 6)
+    ctx.stroke()
+  }
+
+  ctx.fillStyle = COLORS.dim
+  ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace'
+  ctx.textAlign = 'center'
+  for (let i = 0; i < frame.spec.nodes.length; i++) {
+    ctx.fillText(String(i), axisX(frame, l, i), height - PAD_Y + 18)
+  }
+}
+
+function nodeY(frame: ChainFrame, l: Layout, i: number): number {
+  return l.axisY - (frame.displacements[i] as number) * l.displacementPxPerMetre
+}
+
+function drawTransverse(
+  ctx: CanvasRenderingContext2D,
+  frame: ChainFrame,
+  l: Layout,
+  height: number,
+): void {
+  const n = frame.spec.nodes.length
+
+  if (frame.overlay !== null) {
+    ctx.save()
+    ctx.strokeStyle = COLORS.overlay
+    ctx.globalAlpha = 0.5
+    ctx.lineWidth = 1.5
+    ctx.setLineDash([5, 5])
+    ctx.beginPath()
+    for (let i = 0; i < n; i++) {
+      const y = l.axisY - (frame.overlay[i] as number) * l.displacementPxPerMetre
+      if (i === 0) ctx.moveTo(axisX(frame, l, i), y)
+      else ctx.lineTo(axisX(frame, l, i), y)
+    }
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  ctx.strokeStyle = COLORS.spring
+  ctx.lineWidth = 2
+  ctx.lineJoin = 'round'
+  ctx.beginPath()
+  for (let i = 0; i < n; i++) {
+    const x = axisX(frame, l, i)
+    const y = nodeY(frame, l, i)
+    if (i === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  }
+  ctx.stroke()
+
+  for (let i = 0; i < n; i++) {
+    drawNode(ctx, frame, axisX(frame, l, i), nodeY(frame, l, i), i, height)
+  }
+}
+
+function drawLongitudinal(
+  ctx: CanvasRenderingContext2D,
+  frame: ChainFrame,
+  l: Layout,
+  height: number,
+): void {
+  const n = frame.spec.nodes.length
+  const positions: number[] = []
+  for (let i = 0; i < n; i++) {
+    positions.push(
+      axisX(frame, l, i) + (frame.displacements[i] as number) * l.displacementPxPerMetre,
+    )
+  }
+
+  // Coils between neighbours: bunching and stretching IS the signal here.
+  ctx.strokeStyle = COLORS.spring
+  ctx.lineWidth = 1.5
+  ctx.lineJoin = 'round'
+  const coils = 6
+  const amplitude = 9
+  for (let i = 0; i < n - 1; i++) {
+    const x0 = positions[i] as number
+    const x1 = positions[i + 1] as number
+    ctx.beginPath()
+    ctx.moveTo(x0, l.axisY)
+    const steps = coils * 4
+    for (let s = 1; s < steps; s++) {
+      const t = s / steps
+      const x = x0 + (x1 - x0) * t
+      ctx.lineTo(x, l.axisY + Math.sin(t * coils * 2 * Math.PI) * amplitude)
+    }
+    ctx.lineTo(x1, l.axisY)
+    ctx.stroke()
+  }
+
+  for (let i = 0; i < n; i++) {
+    drawNode(ctx, frame, positions[i] as number, l.axisY, i, height)
+  }
+
+  // Exaggerated far enough and neighbouring masses appear to pass through each
+  // other, which no real spring does. The state is fine -- this is purely the
+  // drawing -- but saying so is better than letting it read as a bug or, worse,
+  // as physics.
+  let crossed = false
+  for (let i = 0; i < n - 1; i++) {
+    if ((positions[i + 1] as number) < (positions[i] as number)) crossed = true
+  }
+  if (crossed) {
+    ctx.fillStyle = COLORS.driven
+    ctx.font = '10px system-ui, sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText(
+      `${frame.view.displacementExaggeration.toFixed(0)}× exaggeration exceeds the node spacing — apparent crossings are a drawing artefact`,
+      PAD_X - 6,
+      PAD_Y + 10,
+    )
+  }
+}
+
+function drawNode(
+  ctx: CanvasRenderingContext2D,
+  frame: ChainFrame,
+  x: number,
+  y: number,
+  index: number,
+  height: number,
+): void {
+  const node = frame.spec.nodes[index]
+  if (node === undefined) return
+  const traced = index === frame.view.tracedNode
+
+  if (traced) {
+    ctx.save()
+    ctx.strokeStyle = COLORS.trace
+    ctx.globalAlpha = 0.25
+    ctx.lineWidth = 1
+    ctx.setLineDash([2, 4])
+    ctx.beginPath()
+    ctx.moveTo(x, PAD_Y - 10)
+    ctx.lineTo(x, height - PAD_Y + 2)
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  if (node.driven) {
+    // Driven nodes are squares on a bracket: their position is imposed, not
+    // solved for, and the shape should say so at a glance.
+    ctx.fillStyle = COLORS.driven
+    ctx.fillRect(x - 6, y - 6, 12, 12)
+    ctx.strokeStyle = COLORS.background
+    ctx.lineWidth = 1.5
+    ctx.strokeRect(x - 6, y - 6, 12, 12)
+    if (!isSilent(node.motion)) {
+      ctx.strokeStyle = COLORS.driven
+      ctx.globalAlpha = 0.55
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(x, y, 11, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.globalAlpha = 1
+    }
+  } else {
+    ctx.fillStyle = COLORS.free
+    ctx.beginPath()
+    ctx.arc(x, y, 6.5, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = COLORS.background
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+  }
+
+  if (!isSilent(node.force)) {
+    // A force arrow, drawn only where a force can actually act.
+    ctx.strokeStyle = COLORS.force
+    ctx.fillStyle = COLORS.force
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(x, y - 15)
+    ctx.lineTo(x, y - 28)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(x, y - 32)
+    ctx.lineTo(x - 4, y - 24)
+    ctx.lineTo(x + 4, y - 24)
+    ctx.closePath()
+    ctx.fill()
+  }
+}
+
+function drawSegmentDecorations(
+  ctx: CanvasRenderingContext2D,
+  frame: ChainFrame,
+  l: Layout,
+  height: number,
+): void {
+  const y = height - PAD_Y - 6
+  for (let i = 0; i < frame.spec.segments.length; i++) {
+    const segment = frame.spec.segments[i]
+    if (segment === undefined) continue
+    const x0 = axisX(frame, l, i)
+    const x1 = axisX(frame, l, i + 1)
+
+    if (!isSilent(segment.actuator)) {
+      ctx.strokeStyle = COLORS.actuator
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(x0 + 4, y)
+      ctx.lineTo(x1 - 4, y)
+      ctx.moveTo(x0 + 4, y - 4)
+      ctx.lineTo(x0 + 4, y + 4)
+      ctx.moveTo(x1 - 4, y - 4)
+      ctx.lineTo(x1 - 4, y + 4)
+      ctx.stroke()
+    }
+
+    if (!isSilent(segment.stiffnessModulation)) {
+      ctx.strokeStyle = COLORS.modulation
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      const steps = 24
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps
+        const x = x0 + (x1 - x0) * t
+        const wave = y + 7 + Math.sin(t * 4 * Math.PI) * 3
+        if (s === 0) ctx.moveTo(x, wave)
+        else ctx.lineTo(x, wave)
+      }
+      ctx.stroke()
+    }
+  }
+}
