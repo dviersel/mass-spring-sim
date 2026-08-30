@@ -52,8 +52,8 @@ export function SignalEditor({
   }
 
   return (
-    <div className="row wrap" style={{ gap: 7, alignItems: 'flex-end' }}>
-      <label className="field" style={{ maxWidth: 96 }}>
+    <div className="signal">
+      <label className="field">
         <span>signal</span>
         <select
           value={value.kind}
@@ -122,14 +122,16 @@ export function SignalEditor({
             value={value.duration}
             onChange={(duration) => onChange({ ...value, duration })}
           />
-          <button
-            type="button"
-            className="tiny"
-            title="Restart the sweep from the current simulated time"
-            onClick={() => onChange({ ...value, startTime: now })}
-          >
-            restart sweep
-          </button>
+          <div className="span-all actions">
+            <button
+              type="button"
+              className="tiny"
+              title="Restart the sweep from the current simulated time"
+              onClick={() => onChange({ ...value, startTime: now })}
+            >
+              restart sweep
+            </button>
+          </div>
         </>
       )}
 
@@ -143,19 +145,21 @@ export function SignalEditor({
             value={value.riseTime}
             onChange={(riseTime) => onChange({ ...value, riseTime })}
           />
-          <button
-            type="button"
-            className="tiny"
-            title="Re-trigger the ramp from the current simulated time"
-            onClick={() => onChange({ ...value, startTime: now })}
-          >
-            re-trigger
-          </button>
+          <div className="span-all actions">
+            <button
+              type="button"
+              className="tiny"
+              title="Re-trigger the ramp from the current simulated time"
+              onClick={() => onChange({ ...value, startTime: now })}
+            >
+              re-trigger
+            </button>
+          </div>
         </>
       )}
 
       {value.kind === 'step' && (
-        <div className="seg-note">
+        <div className="seg-note span-all">
           Ramped with a raised cosine, so both the displacement and its velocity
           stay continuous. A zero rise time would be an infinite velocity through
           the dashpots.
