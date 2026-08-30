@@ -57,7 +57,7 @@ interface Layout {
  * a mass moves horizontally and the pen can deflect the same way it does.
  */
 export function seismographActive(frame: ChainFrame): boolean {
-  return frame.view.seismograph && !isPerpendicular(frame) && frame.history !== null
+  return frame.view.seismograph !== 'off' && !isPerpendicular(frame) && frame.history !== null
 }
 
 function isPerpendicular(frame: ChainFrame): boolean {
@@ -117,6 +117,7 @@ export function drawChain(canvas: HTMLCanvasElement, frame: ChainFrame): void {
       baselineY: l.axisY,
       topY: PAD_Y,
       tracedNode: frame.view.tracedNode,
+      mode: frame.view.seismograph,
     })
   }
 

@@ -9,7 +9,7 @@
  */
 
 import type { ModeSummary } from '../../core/eigen/modal'
-import { COLORS, modeColor, prepare, roundedRect } from './theme'
+import { COLORS, seriesColor, prepare, roundedRect } from './theme'
 
 export interface ParticipationFrame {
   /** Peak nodal displacement each mode alone would produce, metres. */
@@ -87,7 +87,7 @@ export function drawParticipation(
     ctx.fill()
 
     if (barHeight > 0.5) {
-      ctx.fillStyle = modeColor(r, count)
+      ctx.fillStyle = seriesColor(r, count)
       roundedRect(ctx, centre - barWidth / 2, baseline - barHeight, barWidth, barHeight, 3)
       ctx.fill()
     }

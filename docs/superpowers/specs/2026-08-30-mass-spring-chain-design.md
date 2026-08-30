@@ -187,7 +187,8 @@ and their numerics need to be inspectable.
 | Presets | A curated set, each demonstrating one phenomenon |
 | Motion regimes | Longitudinal and transverse, switchable, never combined; longitudinal is the default |
 | Default drawing | Inline, the true picture; the perpendicular plot is a toggle |
-| Seismograph pens | One per node in the main pane, time up, inline drawing only |
+| Seismograph pens | One per node in the main pane, time up, inline drawing only; off / pens / ribbon |
+| Theming | Light, dark, or follow the system; palette defined once in CSS and read by the canvases |
 
 ## Testing
 

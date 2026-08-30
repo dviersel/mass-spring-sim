@@ -35,14 +35,21 @@ export interface ViewSettings {
   /** Mode number (1-based) to overlay as a dashed reference shape, or null. */
   readonly overlayMode: number | null
   /**
-   * Draw a seismograph pen per node in the main pane, time running up it.
+   * How the per-node history is drawn in the main pane, time running up it.
    *
-   * Only meaningful alongside the inline drawing: the pens need the vertical
-   * axis for time, and the perpendicular drawing has already spent it on
+   * `pens` draws one line per node. `ribbon` additionally fills each gap
+   * between neighbouring pens with a gradient running from one pen's colour to
+   * the next, so the chain reads as a single continuous surface rather than as
+   * eleven separate records.
+   *
+   * Only meaningful alongside the inline drawing: both need the vertical axis
+   * for time, and the perpendicular drawing has already spent it on
    * displacement.
    */
-  readonly seismograph: boolean
+  readonly seismograph: SeismographMode
 }
+
+export type SeismographMode = 'off' | 'pens' | 'ribbon'
 
 export const DEFAULT_VIEW: ViewSettings = {
   // Mode 1 sits near 7 Hz and mode 9 near 44 Hz. At 0.15 the fundamental reads
@@ -59,7 +66,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   tracedNode: 3,
   traceWindow: 2.5,
   overlayMode: null,
-  seismograph: true,
+  seismograph: 'ribbon',
 }
 
 export const TIME_SCALE_RANGE = { min: 0.005, max: 1 } as const

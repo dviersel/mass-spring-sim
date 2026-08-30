@@ -16,7 +16,8 @@
  * the vertical axis on displacement and has none left for time.
  */
 
-import { COLORS } from './theme'
+import type { SeismographMode } from '../view'
+import { COLORS, seriesColor } from './theme'
 
 /**
  * Ring buffer of whole-chain snapshots.
@@ -115,7 +116,19 @@ export interface SeismographFrame {
   /** Where the oldest sample sits. */
   readonly topY: number
   readonly tracedNode: number
+  readonly mode: SeismographMode
 }
+
+/**
+ * Scratch for the plotted points, reused between frames.
+ *
+ * Every node shares the same sample times, so each trace yields the same number
+ * of points and they can be laid out as one flat array. Holding them lets a
+ * band be closed by walking its right-hand pen backwards, which the ring buffer
+ * cannot do directly, and lets each pen be projected once rather than twice.
+ */
+let scratch = new Float64Array(0)
+let scratchStride = 0
 
 const TIME_GRID_TARGET = 6
 
@@ -129,6 +142,9 @@ export function drawSeismographs(ctx: CanvasRenderingContext2D, frame: Seismogra
   // the tip of every trace touches the node that drew it, so the chain and its
   // own record join up instead of the spring sitting against the oldest sample.
   const timeToY = (t: number): number => baselineY - ((now - t) / seconds) * span
+
+  const samples = project(frame, timeToY, oldest)
+  if (samples === 0) return
 
   drawTimeGrid(ctx, frame, timeToY, oldest)
 
@@ -147,27 +163,103 @@ export function drawSeismographs(ctx: CanvasRenderingContext2D, frame: Seismogra
 
   drawScaleBar(ctx, frame)
 
+  if (frame.mode === 'ribbon') drawBands(ctx, frame, samples)
+  drawPens(ctx, frame, samples)
+}
+
+/**
+ * Project every node's visible history into canvas points, returning the number
+ * of samples plotted.
+ */
+function project(
+  frame: SeismographFrame,
+  timeToY: (t: number) => number,
+  oldest: number,
+): number {
+  const { nodeCount } = frame
+  let count = 0
+
+  // Every node shares the sample times, so node zero settles the count.
+  frame.buffer.forEachNodeSample(0, (t) => {
+    if (t >= oldest) count++
+  })
+  if (count === 0) return 0
+
+  const needed = nodeCount * count * 2
+  if (scratch.length < needed) scratch = new Float64Array(needed)
+  scratchStride = count * 2
+
+  for (let i = 0; i < nodeCount; i++) {
+    const restX = frame.restX(i)
+    const base = i * scratchStride
+    let k = 0
+    frame.buffer.forEachNodeSample(i, (t, value) => {
+      if (t < oldest || k >= count) return
+      scratch[base + k * 2] = restX + value * frame.displacementPxPerMetre
+      scratch[base + k * 2 + 1] = timeToY(t)
+      k++
+    })
+  }
+  return count
+}
+
+function pointX(node: number, index: number): number {
+  return scratch[node * scratchStride + index * 2] as number
+}
+
+function pointY(node: number, index: number): number {
+  return scratch[node * scratchStride + index * 2 + 1] as number
+}
+
+/**
+ * Fill each gap between neighbouring pens with a gradient running from one
+ * pen's colour to the next.
+ *
+ * Chained across the chain they read as one continuous surface, so a wave
+ * travelling along it is a shape rather than eleven separate wiggles that have
+ * to be correlated by eye. The gradient runs between the two nodes' REST
+ * positions rather than their current ones, so the colours stay pinned to the
+ * chain instead of sloshing about with the motion.
+ */
+function drawBands(ctx: CanvasRenderingContext2D, frame: SeismographFrame, samples: number): void {
+  ctx.save()
+  ctx.globalAlpha = 0.5
+  for (let i = 0; i < frame.nodeCount - 1; i++) {
+    const leftRest = frame.restX(i)
+    const rightRest = frame.restX(i + 1)
+
+    const gradient = ctx.createLinearGradient(leftRest, 0, rightRest, 0)
+    gradient.addColorStop(0, seriesColor(i, frame.nodeCount))
+    gradient.addColorStop(1, seriesColor(i + 1, frame.nodeCount))
+    ctx.fillStyle = gradient
+
+    ctx.beginPath()
+    ctx.moveTo(pointX(i, 0), pointY(i, 0))
+    for (let k = 1; k < samples; k++) ctx.lineTo(pointX(i, k), pointY(i, k))
+    for (let k = samples - 1; k >= 0; k--) ctx.lineTo(pointX(i + 1, k), pointY(i + 1, k))
+    ctx.closePath()
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+function drawPens(ctx: CanvasRenderingContext2D, frame: SeismographFrame, samples: number): void {
+  const ribbon = frame.mode === 'ribbon'
   for (let i = 0; i < frame.nodeCount; i++) {
     const traced = i === frame.tracedNode
     ctx.save()
-    ctx.strokeStyle = traced ? COLORS.trace : COLORS.spring
-    ctx.globalAlpha = traced ? 0.95 : 0.6
-    ctx.lineWidth = traced ? 1.8 : 1.2
+    // The same hue ramp the participation bars use, indexed by node here rather
+    // than by mode. Nodes and modes are different quantities and there are
+    // different numbers of them, so this is a shared palette family and not a
+    // claim that pen n belongs to bar n. The selected pen is picked out by
+    // weight and opacity rather than by hue, so it keeps its place in the ramp.
+    ctx.strokeStyle = seriesColor(i, frame.nodeCount)
+    ctx.globalAlpha = traced ? 1 : ribbon ? 0.85 : 0.62
+    ctx.lineWidth = traced ? 2.2 : ribbon ? 1 : 1.2
     ctx.lineJoin = 'round'
     ctx.beginPath()
-
-    const restX = frame.restX(i)
-    let started = false
-    frame.buffer.forEachNodeSample(i, (t, value) => {
-      if (t < oldest) return
-      const x = restX + value * frame.displacementPxPerMetre
-      const y = timeToY(t)
-      if (started) ctx.lineTo(x, y)
-      else {
-        ctx.moveTo(x, y)
-        started = true
-      }
-    })
+    ctx.moveTo(pointX(i, 0), pointY(i, 0))
+    for (let k = 1; k < samples; k++) ctx.lineTo(pointX(i, k), pointY(i, k))
     ctx.stroke()
     ctx.restore()
   }

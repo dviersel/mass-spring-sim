@@ -67,7 +67,13 @@ The short version:
 - **Seismograph pens**: one per mass, time running up the pane, each deflecting
   exactly as its node does. A disturbance entering one end sweeps across them as
   a diagonal — a travelling wave seen directly — while a standing wave puts every
-  pen in step and leaves the mode's own nodes flat.
+  pen in step and leaves the mode's own nodes flat. **Ribbon** mode fills each
+  gap with a gradient between neighbouring pen colours, so the chain reads as
+  one continuous surface: drive an interior node and the far half of the ribbon
+  goes visibly, completely still.
+- **Light and dark**, with a third setting that follows the system and keeps
+  following it. The palette lives in the stylesheet and the canvases read it
+  from there, so the drawings and the interface cannot drift apart.
 - Computed natural frequencies match the analytical dispersion relation to
   **2.9 × machine epsilon**.
 

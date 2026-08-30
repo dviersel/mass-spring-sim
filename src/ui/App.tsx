@@ -33,6 +33,14 @@ import {
   toLogSlider,
   type ViewSettings,
 } from './view'
+import {
+  applyPreference,
+  readPreference,
+  storePreference,
+  watchSystemTheme,
+  type ThemePreference,
+} from './appearance'
+import { refreshPalette } from './canvas/theme'
 import { ErrorBoundary } from './ErrorBoundary'
 import { NumberField, Panel, SliderField } from './controls/fields'
 import { SignalEditor } from './controls/SignalEditor'
@@ -51,12 +59,23 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
   const [modeAmplitude, setModeAmplitude] = useState(0.003)
   const [silenceOnModeStart, setSilenceOnModeStart] = useState(true)
   const [activePreset, setActivePreset] = useState<string | null>(null)
+  const [theme, setTheme] = useState<ThemePreference>(readPreference)
 
   const chainCanvas = useRef<HTMLCanvasElement | null>(null)
   const participationCanvas = useRef<HTMLCanvasElement | null>(null)
   const traceCanvas = useRef<HTMLCanvasElement | null>(null)
   const runnerRef = useRef<Runner | null>(null)
   const pending = useRef<PendingAction | null>(null)
+
+  // Apply the theme and re-read the palette the canvases draw with. Following
+  // the system also means tracking it while the page is open, not only at load.
+  useEffect(() => {
+    applyPreference(theme)
+    storePreference(theme)
+    refreshPalette()
+    if (theme !== 'system') return
+    return watchSystemTheme(refreshPalette)
+  }, [theme])
 
   useEffect(() => {
     const runner = new Runner(
@@ -167,6 +186,8 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
         <Stat label="Δt" value={`${((stats?.timestep ?? 0) * 1e6).toFixed(0)} µs`} />
         <Stat label="steps/frame" value={String(stats?.stepsLastFrame ?? 0)} />
         <Stat label="energy" value={`${((stats?.energy ?? 0) * 1e6).toFixed(1)} µJ`} />
+
+        <ThemeSwitch value={theme} onChange={setTheme} />
 
         <button type="button" className="primary" onClick={() => setRunning((r) => !r)}>
           {running ? '❙❙ pause' : '▶ run'}
@@ -323,23 +344,24 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                 onChange={(traceWindow) => patchView({ traceWindow })}
               />
             </div>
-            <label
-              className="row"
-              style={{ gap: 6, fontSize: 11.5, color: 'var(--muted)' }}
-              title={
-                perpendicularDrawing
-                  ? 'The pens need the vertical axis for time, which this drawing spends on displacement.'
-                  : 'One pen per mass, time running up the pane.'
-              }
-            >
-              <input
-                type="checkbox"
-                checked={view.seismograph && !perpendicularDrawing}
+            <label className="field">
+              <span>seismograph</span>
+              <select
+                value={perpendicularDrawing ? 'off' : view.seismograph}
                 disabled={perpendicularDrawing}
-                style={{ width: 'auto' }}
-                onChange={(e) => patchView({ seismograph: e.target.checked })}
-              />
-              seismograph pens per node
+                title={
+                  perpendicularDrawing
+                    ? 'The pens need the vertical axis for time, which this drawing spends on displacement.'
+                    : undefined
+                }
+                onChange={(e) =>
+                  patchView({ seismograph: e.target.value as ViewSettings['seismograph'] })
+                }
+              >
+                <option value="off">off</option>
+                <option value="pens">pens</option>
+                <option value="ribbon">ribbon</option>
+              </select>
             </label>
             <div className="hint-text">
               {perpendicularDrawing ? (
@@ -355,7 +377,9 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                   upward with time. Read them together: a disturbance entering one end
                   sweeps across as a diagonal, which is a travelling wave seen
                   directly, while a standing wave puts every pen in step and leaves the
-                  mode's own nodes flat. The trace window above sets how far back they
+                  mode's own nodes flat. <strong>Ribbon</strong> fills each gap with a
+                  gradient between neighbouring pen colours, so the chain reads as one
+                  continuous surface. The trace window above sets how far back they
                   reach.
                 </>
               )}
@@ -646,6 +670,37 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
           </Panel>
         </aside>
       </div>
+    </div>
+  )
+}
+
+const THEME_OPTIONS: readonly { value: ThemePreference; glyph: string; label: string }[] = [
+  { value: 'light', glyph: '\u2600', label: 'Light' },
+  { value: 'dark', glyph: '\u263D', label: 'Dark' },
+  { value: 'system', glyph: 'A', label: 'Follow the system' },
+]
+
+function ThemeSwitch({
+  value,
+  onChange,
+}: {
+  readonly value: ThemePreference
+  readonly onChange: (next: ThemePreference) => void
+}): ReactNode {
+  return (
+    <div className="theme-switch" role="group" aria-label="Colour theme">
+      {THEME_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className={value === option.value ? 'active' : ''}
+          title={option.label}
+          aria-pressed={value === option.value}
+          onClick={() => onChange(option.value)}
+        >
+          {option.glyph}
+        </button>
+      ))}
     </div>
   )
 }

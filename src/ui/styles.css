@@ -1,4 +1,104 @@
+/*
+ * Palette.
+ *
+ * Light is defined on bare :root so it is the complete, unconditional baseline.
+ * Dark is then layered twice: once under prefers-color-scheme for viewers
+ * following their system, guarded so an explicit light choice still wins, and
+ * once under [data-theme="dark"] so the toggle wins in both directions. No
+ * colour has its only definition inside a conditional block.
+ *
+ * The canvases read these same properties, so the drawings and the interface
+ * cannot drift apart.
+ */
 :root {
+  --bg: #eef1f5;
+  --panel: #ffffff;
+  --panel-2: #f4f7fa;
+  --border: #d5dce4;
+  --text: #16202b;
+  --muted: #566577;
+  --dim: #8b98a8;
+
+  --grid: #e6ebf1;
+  --axis: #c3ccd7;
+  --spring: #6b7889;
+  --overlay: #98a4b3;
+  --trace: #0b62d0;
+
+  --free: #0b62d0;
+  --driven: #b45309;
+  --force: #167c3a;
+  --actuator: #7539c9;
+  --modulation: #b62d78;
+  --warn: #c62a33;
+
+  --accent: #1f6feb;
+  --accent-border: #1a5fd0;
+  --accent-hover: #1a63dd;
+  --accent-text: #ffffff;
+
+  --banner-warn-bg: #fdecea;
+  --banner-warn-border: #f2b8b4;
+  --banner-warn-text: #8f171e;
+  --banner-info-bg: #eaf2fb;
+  --banner-info-border: #b9d4ef;
+  --banner-info-text: #14456f;
+
+  --row-hover: #f0f4f8;
+  --row-line: #eef2f6;
+
+  /* Series hues need depth on a light ground. */
+  --series-lightness: 42%;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1117;
+    --panel: #12171f;
+    --panel-2: #161c26;
+    --border: #232c39;
+    --text: #d5dde8;
+    --muted: #7d8b9e;
+    --dim: #4a5768;
+
+    --grid: #1c2430;
+    --axis: #2b3542;
+    --spring: #6b7a8f;
+    --overlay: #8b949e;
+    --trace: #58a6ff;
+
+    --free: #58a6ff;
+    --driven: #f0883e;
+    --force: #3fb950;
+    --actuator: #bc8cff;
+    --modulation: #f778ba;
+    --warn: #f85149;
+
+    --accent: #1f6feb;
+    --accent-border: #2f7ef5;
+    --accent-hover: #2a7bf7;
+    --accent-text: #ffffff;
+
+    --banner-warn-bg: #2a1416;
+    --banner-warn-border: #5c2226;
+    --banner-warn-text: #ffb4ae;
+    --banner-info-bg: #12212e;
+    --banner-info-border: #1f3b52;
+    --banner-info-text: #9fc9e8;
+
+    --row-hover: #161c26;
+    --row-line: #1a212b;
+
+    /* And lift on a dark one. */
+    --series-lightness: 62%;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
   --bg: #0d1117;
   --panel: #12171f;
   --panel-2: #161c26;
@@ -6,12 +106,37 @@
   --text: #d5dde8;
   --muted: #7d8b9e;
   --dim: #4a5768;
+
+  --grid: #1c2430;
+  --axis: #2b3542;
+  --spring: #6b7a8f;
+  --overlay: #8b949e;
+  --trace: #58a6ff;
+
   --free: #58a6ff;
   --driven: #f0883e;
   --force: #3fb950;
   --actuator: #bc8cff;
   --modulation: #f778ba;
   --warn: #f85149;
+
+  --accent: #1f6feb;
+  --accent-border: #2f7ef5;
+  --accent-hover: #2a7bf7;
+  --accent-text: #ffffff;
+
+  --banner-warn-bg: #2a1416;
+  --banner-warn-border: #5c2226;
+  --banner-warn-text: #ffb4ae;
+  --banner-info-bg: #12212e;
+  --banner-info-border: #1f3b52;
+  --banner-info-text: #9fc9e8;
+
+  --row-hover: #161c26;
+  --row-line: #1a212b;
+
+  --series-lightness: 62%;
+
   color-scheme: dark;
 }
 
@@ -114,9 +239,9 @@ button {
   border: 1px solid var(--border); border-radius: 4px;
   padding: 5px 10px; font: inherit; font-size: 12px; cursor: pointer;
 }
-button:hover { border-color: var(--dim); background: #1b2330; }
-button.primary { background: #1f6feb; border-color: #2f7ef5; color: #fff; }
-button.primary:hover { background: #2a7bf7; }
+button:hover { border-color: var(--dim); background: var(--row-hover); }
+button.primary { background: var(--accent); border-color: var(--accent-border); color: var(--accent-text); }
+button.primary:hover { background: var(--accent-hover); }
 button.ghost { background: transparent; }
 button.tiny { padding: 2px 6px; font-size: 11px; }
 
@@ -131,7 +256,7 @@ button.tiny { padding: 2px 6px; font-size: 11px; }
 .chip:hover { border-color: var(--dim); }
 .chip.selected { outline: 1px solid var(--free); outline-offset: 1px; }
 .chip.free { color: var(--free); }
-.chip.driven { color: var(--driven); border-color: #4a3524; background: #221a12; }
+.chip.driven { color: var(--driven); border-color: var(--driven); background: color-mix(in srgb, var(--driven) 12%, var(--panel)); }
 .chip .marks { position: absolute; top: -3px; right: -3px; display: flex; gap: 1px; }
 .chip .mark { width: 5px; height: 5px; border-radius: 50%; }
 
@@ -145,7 +270,7 @@ table.modes th {
   letter-spacing: 0.4px; text-align: right; padding: 3px 5px; border-bottom: 1px solid var(--border);
 }
 table.modes th:first-child, table.modes td:first-child { text-align: left; }
-table.modes td { padding: 3px 5px; text-align: right; border-bottom: 1px solid #1a212b; }
+table.modes td { padding: 3px 5px; text-align: right; border-bottom: 1px solid var(--row-line); }
 table.modes tr:hover td { background: var(--panel-2); }
 table.modes .overdamped { color: var(--warn); }
 table.modes.stale { opacity: 0.38; }
@@ -154,13 +279,19 @@ table.modes.stale { opacity: 0.38; }
   display: flex; gap: 8px; align-items: flex-start;
   padding: 8px 10px; border-radius: 5px; font-size: 11.5px; line-height: 1.4;
 }
-.banner.warn { background: #2a1416; border: 1px solid #5c2226; color: #ffb4ae; }
-.banner.info { background: #12212e; border: 1px solid #1f3b52; color: #9fc9e8; }
+.banner.warn { background: var(--banner-warn-bg); border: 1px solid var(--banner-warn-border); color: var(--banner-warn-text); }
+.banner.info { background: var(--banner-info-bg); border: 1px solid var(--banner-info-border); color: var(--banner-info-text); }
 .banner .icon { flex: none; font-size: 13px; line-height: 1.1; }
 
 .preset { display: flex; flex-direction: column; gap: 3px; padding: 7px 9px; text-align: left; width: 100%; }
 .preset .name { font-weight: 600; font-size: 12px; color: var(--text); }
 .preset .hint { color: var(--muted); font-size: 10.5px; line-height: 1.4; white-space: normal; }
+/* The selected scenario sits on the accent fill, where the muted body colour
+   has almost no contrast left -- badly so on a light ground. */
+button.primary .name, button.primary .hint { color: var(--accent-text); }
+/* 0.95 rather than lower: below about this the blend with the accent fill
+   drops the body text under a 4.5:1 contrast ratio. */
+button.primary .hint { opacity: 0.95; }
 
 .hint-text { color: var(--muted); font-size: 10.5px; line-height: 1.45; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -169,12 +300,22 @@ table.modes.stale { opacity: 0.38; }
 
 .crash {
   max-width: 620px; margin: 12vh auto; padding: 22px 26px;
-  background: var(--panel); border: 1px solid #5c2226; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--banner-warn-border); border-radius: 8px;
 }
-.crash h2 { margin: 0 0 12px; font-size: 15px; color: #ffb4ae; }
+.crash h2 { margin: 0 0 12px; font-size: 15px; color: var(--banner-warn-text); }
 .crash pre {
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 5px;
   padding: 10px 12px; overflow-x: auto; font-size: 12px; color: var(--text);
   white-space: pre-wrap; margin: 0 0 12px;
 }
 .crash p { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 0 0 14px; }
+
+.theme-switch { display: flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; flex: none; }
+.theme-switch button {
+  border: none; border-radius: 0; background: transparent;
+  padding: 4px 8px; font-size: 12px; line-height: 1.1; color: var(--dim);
+  min-width: 30px;
+}
+.theme-switch button + button { border-left: 1px solid var(--border); }
+.theme-switch button:hover { background: var(--row-hover); color: var(--muted); }
+.theme-switch button.active { background: var(--panel-2); color: var(--text); }
