@@ -25,7 +25,14 @@ import {
 import { isSilent } from '../core/signal'
 import { barAt } from './canvas/participation'
 import { Runner, type RunnerStats } from './runner'
-import { PRESETS, initialChain } from './presets'
+import { PRESETS, initialChain, type PresetState } from './presets'
+import {
+  addConfig,
+  readLibrary,
+  removeConfig,
+  writeLibrary,
+  type SavedConfig,
+} from './saved'
 import {
   DEFAULT_VIEW,
   EXAGGERATION_RANGE,
@@ -61,6 +68,9 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
   const [silenceOnModeStart, setSilenceOnModeStart] = useState(true)
   const [activePreset, setActivePreset] = useState<string | null>(null)
   const [theme, setTheme] = useState<ThemePreference>(readPreference)
+  const [saved, setSaved] = useState<SavedConfig[]>(readLibrary)
+  const [saveName, setSaveName] = useState('')
+  const [saveFailed, setSaveFailed] = useState(false)
 
   const chainCanvas = useRef<HTMLCanvasElement | null>(null)
   const participationCanvas = useRef<HTMLCanvasElement | null>(null)
@@ -139,15 +149,46 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
     setView((current) => ({ ...current, ...patch }))
   }, [])
 
-  const applyPreset = useCallback((id: string) => {
-    const preset = PRESETS.find((p) => p.id === id)
-    if (preset === undefined) return
-    const state = preset.build()
+  /**
+   * Load a configuration, whether curated or saved by the user.
+   *
+   * Both are the same shape, so both arrive here: a chain the user assembled
+   * restores through exactly the path a built-in scenario does.
+   */
+  const applyState = useCallback((state: PresetState, id: string | null) => {
     pending.current = { startMode: state.startMode }
     setActivePreset(id)
     setView((current) => ({ ...DEFAULT_VIEW, ...current, ...state.view }))
     setSpec(state.spec)
   }, [])
+
+  const applyPreset = useCallback(
+    (id: string) => {
+      const preset = PRESETS.find((p) => p.id === id)
+      if (preset === undefined) return
+      applyState(preset.build(), id)
+    },
+    [applyState],
+  )
+
+  const saveCurrent = useCallback(() => {
+    const name = saveName.trim()
+    if (name === '') return
+    const next = addConfig(saved, name, { spec, view })
+    setSaved(next)
+    // Storage can refuse, and a save that quietly vanished is worth saying.
+    setSaveFailed(!writeLibrary(next))
+    setSaveName('')
+  }, [saveName, saved, spec, view])
+
+  const deleteSaved = useCallback(
+    (id: string) => {
+      const next = removeConfig(saved, id)
+      setSaved(next)
+      writeLibrary(next)
+    },
+    [saved],
+  )
 
   const startFromMode = useCallback(
     (mode: number) => {
@@ -290,6 +331,67 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                   <span className="hint">{preset.hint}</span>
                 </button>
               ))}
+            </div>
+          </Panel>
+
+          <Panel title="Saved">
+            <div className="row">
+              <label className="field" style={{ flex: '1 1 140px' }}>
+                <span>name</span>
+                <input
+                  type="text"
+                  value={saveName}
+                  placeholder="heavy middle mass"
+                  onChange={(event) => setSaveName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') saveCurrent()
+                  }}
+                />
+              </label>
+              <button type="button" onClick={saveCurrent} disabled={saveName.trim() === ''}>
+                save
+              </button>
+            </div>
+
+            {saveFailed && (
+              <div className="hint-text">
+                This browser refused to store the save — a private window, or site data
+                blocked. The configuration is still loaded; it just will not survive a
+                reload.
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {saved.map((config) => (
+                <div key={config.id} className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+                  <button
+                    type="button"
+                    className={`preset${activePreset === config.id ? ' primary' : ''}`}
+                    onClick={() => applyState(config.state, config.id)}
+                  >
+                    <span className="name">{config.name}</span>
+                    <span className="hint">
+                      {config.state.spec.nodes.length} nodes ·{' '}
+                      {config.state.spec.motionMode} · saved{' '}
+                      {new Date(config.savedAt).toLocaleDateString()}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="tiny ghost"
+                    title={`delete ${config.name}`}
+                    onClick={() => deleteSaved(config.id)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="hint-text">
+              {saved.length === 0
+                ? 'Set the chain up, name it, and save. Saves live in this browser.'
+                : 'Restoring sets the chain and the view back up at rest — it reloads the configuration, it does not resume the motion.'}
             </div>
           </Panel>
 
