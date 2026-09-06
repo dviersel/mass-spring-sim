@@ -13,6 +13,8 @@ import {
   respaceEvenly,
   setNodeDriven,
   setNodeForce,
+  setNodeGroundDamping,
+  setNodeGroundStiffness,
   setNodeMass,
   setMotionMode,
   setNodeMotion,
@@ -21,11 +23,12 @@ import {
   setSegmentStiffnessModulation,
   setTotals,
   silenceExcitations,
+  tetherAll,
 } from '../core/edit'
 import { isSilent } from '../core/signal'
 import { barAt } from './canvas/participation'
 import { Runner, type RunnerStats } from './runner'
-import { PRESETS, initialChain, type PresetState } from './presets'
+import { NODE_MASS, PRESETS, initialChain, type PresetState } from './presets'
 import {
   addConfig,
   readLibrary,
@@ -140,6 +143,11 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
 
   const now = stats?.time ?? 0
   const timeVarying = useMemo(() => hasTimeVaryingStiffness(spec), [spec])
+  /** The tether shared by every node, or null when they disagree. */
+  const commonTether = useMemo(() => {
+    const first = spec.nodes[0]?.groundStiffness ?? 0
+    return spec.nodes.every((n) => (n.groundStiffness ?? 0) === first) ? first : null
+  }, [spec])
   const transverse = spec.motionMode === 'transverse'
   // Transverse motion forces the perpendicular drawing, which is also the one
   // that has no vertical axis left for the pens.
@@ -634,6 +642,23 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
               </div>
             </div>
             <div className="row">
+              <NumberField
+                label="tether all nodes"
+                unit="N/m"
+                step={500}
+                min={0}
+                value={commonTether ?? 0}
+                onChange={(k) => setSpec((s) => tetherAll(s, k))}
+              />
+              <div className="hint-text full">
+                {commonTether === null
+                  ? 'Nodes are tethered unevenly at the moment; setting this makes them uniform again.'
+                  : commonTether > 0
+                    ? `An on-site spring on every mass. Nothing propagates below the cutoff √(k_g/m) = ${(Math.sqrt(commonTether / (spec.nodes[1]?.mass ?? NODE_MASS)) / (2 * Math.PI)).toFixed(1)} Hz — drive under it and the motion decays along the chain instead of travelling.`
+                    : 'A spring from every mass to ground. The chain then has a cutoff frequency: below it no wave propagates at all.'}
+              </div>
+            </div>
+            <div className="row">
               <button type="button" onClick={() => setSpec(respaceEvenly)}>
                 space nodes evenly
               </button>
@@ -708,6 +733,39 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                     />
                   )}
                 </div>
+
+                {/* Only on free nodes: a tether resists a node's own motion, and
+                    a driven node's motion is imposed, so whatever imposes it
+                    would simply absorb the tether force. */}
+                {!node.driven && (
+                  <div className="row">
+                    <NumberField
+                      label="tether"
+                      unit="N/m"
+                      step={500}
+                      min={0}
+                      value={node.groundStiffness ?? 0}
+                      onChange={(k) => setSpec((s) => setNodeGroundStiffness(s, selectedNode, k))}
+                    />
+                    <NumberField
+                      label="damper"
+                      unit="N·s/m"
+                      step={0.5}
+                      min={0}
+                      value={node.groundDamping ?? 0}
+                      onChange={(c) => setSpec((s) => setNodeGroundDamping(s, selectedNode, c))}
+                    />
+                    <div className="hint-text full">
+                      A spring and a dashpot to ground, acting on this node's own
+                      displacement rather than on its motion relative to a neighbour.
+                      Tether every node and the chain gains a cutoff frequency below
+                      which nothing propagates. A damper of √(k·m) on an end absorbs an
+                      arriving wave instead of reflecting it — and is the one damping
+                      here that does not follow the spring's connectivity, so it makes
+                      the chain non-classically damped.
+                    </div>
+                  </div>
+                )}
 
                 <div className="hint-text">
                   {node.driven
