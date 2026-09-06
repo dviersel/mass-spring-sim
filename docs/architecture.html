@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mass-spring-sim: core and ui</title>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      color-scheme: light dark;
+      /* mermaid-to-image theme.json, verbatim */
+      --paper:#FFFFFF; --paper-2:#FAFAF8; --panel:#FFFFFF;
+      --ink:#16202B; --muted:#5A6672; --soft:#6B7A8C;
+      --rule:rgba(22,32,43,0.12); --rule-solid:#B4BDC6;
+      --zone-fill:#FAFAF8; --zone-line:#B4BDC6; --zone-label:#6B7A8C;
+      --line:#6B7A8C;
+      /* node vocabulary: fill / hachure / stroke */
+      --platform-fill:#DCE9F7;  --platform-hatch:#CFE1F4;  --platform-line:#2F6296;
+      --consumer-fill:#FDF3E3;  --consumer-hatch:#FBEBD0;  --consumer-line:#B07D2B;
+      --service-fill:#F1F3F5;   --service-hatch:#E9ECEF;   --service-line:#5A6672;
+      --artefact-fill:#F2EEF7;  --artefact-hatch:#EAE3F2;  --artefact-line:#6B5B8A;
+      --external-fill:#FFFFFF;  --external-line:#9AA5B1;
+      --muted-fill:#FFFFFF;     --muted-line:#B4BDC6;      --muted-text:#6B7A8C;
+      --font-hand:'Bradley Hand','Noteworthy','Marker Felt','Comic Sans MS','Segoe Print',cursive;
+      --font-sans:'Geist', system-ui, sans-serif;
+      --font-mono:'Geist Mono', ui-monospace, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper:#111417; --paper-2:#181C21; --panel:#181C21;
+        --ink:#E4E7EA; --muted:#93A0AD; --soft:#8794A3;
+        --rule:rgba(228,231,234,0.12); --rule-solid:#333B44;
+        --zone-fill:#161A1E; --zone-line:#333B44; --zone-label:#8794A3;
+        --line:#8794A3;
+        --platform-fill:rgba(47,98,150,0.24);  --platform-hatch:rgba(47,98,150,0.38);  --platform-line:#6BA3DC;
+        --consumer-fill:rgba(176,125,43,0.22); --consumer-hatch:rgba(176,125,43,0.34); --consumer-line:#D9A44E;
+        --service-fill:rgba(228,231,234,0.05); --service-hatch:rgba(228,231,234,0.09); --service-line:#8794A3;
+        --artefact-fill:rgba(107,91,138,0.26); --artefact-hatch:rgba(107,91,138,0.38); --artefact-line:#A78FC9;
+        --external-fill:transparent;           --external-line:#6B7683;
+        --muted-fill:transparent;              --muted-line:#3D4650;  --muted-text:#8794A3;
+      }
+    }
+    body { font-family:var(--font-sans); background:var(--paper); color:var(--ink);
+      min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:3rem 2rem; }
+    .frame { max-width:1240px; width:100%; }
+    .eyebrow { font-family:var(--font-mono); font-size:.66rem; font-weight:500;
+      letter-spacing:.18em; text-transform:uppercase; color:var(--soft); margin-bottom:.5rem; }
+    h1 { font-family:var(--font-hand); font-size:clamp(1.7rem,2.6vw + .75rem,2.3rem);
+      font-weight:400; letter-spacing:0; line-height:1.15; margin-bottom:.6rem; }
+    .lede { font-size:.875rem; line-height:1.55; color:var(--muted); max-width:62ch; margin-bottom:1.75rem; }
+    .diagram { overflow-x:auto; }
+    svg { width:100%; min-width:960px; display:block; }
+    .colophon { font-family:var(--font-mono); font-size:.66rem; letter-spacing:.06em;
+      color:var(--soft); border-top:1px solid var(--rule); margin-top:1.5rem; padding-top:.75rem; }
+    #arrow polygon { fill:var(--line); }
+    #arrow-subject polygon { fill:var(--platform-line); }
+    #arrow-open polyline { stroke:var(--line); }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture &#183; mass-spring-sim</p>
+    <h1>mass-spring-sim: core and ui</h1>
+    <p class="lede">Ten modules, twelve edges. The physics core carries zero runtime dependencies, holds strict SI, and never sees a pixel &#8212; so it runs unchanged in a bare Node process. The boundary is crossed in exactly three places.</p>
+
+    <div class="diagram">
+    <svg viewBox="0 0 1200 656" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="msc-architecture-title msc-architecture-desc">
+      <title id="msc-architecture-title">mass-spring-sim: core and ui</title>
+      <desc id="msc-architecture-desc">Architecture of a browser mass-spring simulator. A zero-dependency SI physics core &#8212; chain specification, matrix assembly, force vector, signal evaluation, fixed-step RK4 and modal analysis, all gathered by simulation.ts &#8212; is driven across a single boundary by a requestAnimationFrame runner in the React UI layer, which owns time scaling, displacement exaggeration and the four canvas panes.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6"/></marker>
+        <marker id="arrow-subject" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6"/></marker>
+        <marker id="arrow-open" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polyline points="0 0, 8 3, 0 6" fill="none" stroke-width="1.2"/></marker>
+
+        <filter id="sketch-a" x="-2%" y="-2%" width="104%" height="104%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.011" numOctaves="1" seed="42"/>
+          <feDisplacementMap in="SourceGraphic" scale="4.5"/>
+        </filter>
+        <filter id="sketch-b" x="-2%" y="-2%" width="104%" height="104%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.013" numOctaves="1" seed="91"/>
+          <feDisplacementMap in="SourceGraphic" scale="6"/>
+        </filter>
+
+        <!-- Hachure: broad, light strokes in the fill's own hue. rough.js emits
+             its fill as a 4px-stroked path, which is why this is bands not pinstripe. -->
+        <pattern id="h-platform" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="9" stroke="var(--platform-hatch)" stroke-width="4"/>
+        </pattern>
+        <pattern id="h-consumer" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="9" stroke="var(--consumer-hatch)" stroke-width="4"/>
+        </pattern>
+        <pattern id="h-service" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="9" stroke="var(--service-hatch)" stroke-width="4"/>
+        </pattern>
+        <pattern id="h-artefact" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="9" stroke="var(--artefact-hatch)" stroke-width="4"/>
+        </pattern>
+      </defs>
+
+      <rect width="100%" height="100%" fill="var(--paper)"/>
+
+      <g filter="url(#sketch-a)">
+      <rect x="56" y="56" width="1088" height="120" rx="6" fill="var(--zone-fill)" stroke="var(--zone-line)" stroke-width="1"/>
+      <rect x="56" y="240" width="1088" height="328" rx="6" fill="var(--zone-fill)" stroke="var(--zone-line)" stroke-width="1"/>
+      <line x1="264" y1="120" x2="632" y2="120" stroke="var(--line)" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="840" y1="120" x2="928" y2="120" stroke="var(--line)" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="140" y1="152" x2="140" y2="272" stroke="var(--platform-line)" stroke-width="1.2" marker-end="url(#arrow-subject)"/>
+      <line x1="688" y1="152" x2="688" y2="272" stroke="var(--platform-line)" stroke-width="1.2" marker-end="url(#arrow-subject)"/>
+      <line x1="784" y1="272" x2="784" y2="152" stroke="var(--platform-line)" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-subject)"/>
+      <line x1="264" y1="304" x2="368" y2="304" stroke="var(--line)" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="544" y1="292" x2="632" y2="292" stroke="var(--line)" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="708" y1="336" x2="708" y2="408" stroke="var(--line)" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="764" y1="408" x2="764" y2="336" stroke="var(--line)" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="264" y1="440" x2="352" y2="440" stroke="var(--line)" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <path d="M 560,440 H 588 Q 596,440 596,432 V 324 Q 596,316 604,316 H 632" fill="none" stroke="var(--line)" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="840" y1="304" x2="928" y2="304" stroke="var(--line)" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="88" y="88" width="176" height="64" rx="6" fill="var(--paper)"/>
+      <rect x="88" y="88" width="176" height="64" rx="6" fill="var(--consumer-fill)"/>
+      <rect x="88" y="88" width="176" height="64" rx="6" fill="url(#h-consumer)"/>
+      <rect x="88" y="88" width="176" height="64" rx="6" fill="none" stroke="var(--consumer-line)" stroke-width="1.5"/>
+      <rect x="96" y="96" width="28" height="12" rx="2" fill="var(--paper)" stroke="var(--consumer-line)" stroke-width="0.8" opacity="0.55"/>
+      <rect x="632" y="88" width="208" height="64" rx="6" fill="var(--paper)"/>
+      <rect x="632" y="88" width="208" height="64" rx="6" fill="var(--consumer-fill)"/>
+      <rect x="632" y="88" width="208" height="64" rx="6" fill="url(#h-consumer)"/>
+      <rect x="632" y="88" width="208" height="64" rx="6" fill="none" stroke="var(--consumer-line)" stroke-width="1.5"/>
+      <rect x="640" y="96" width="24" height="12" rx="2" fill="var(--paper)" stroke="var(--consumer-line)" stroke-width="0.8" opacity="0.55"/>
+      <rect x="928" y="88" width="176" height="64" rx="6" fill="var(--paper)"/>
+      <rect x="928" y="88" width="176" height="64" rx="6" fill="var(--service-fill)"/>
+      <rect x="928" y="88" width="176" height="64" rx="6" fill="url(#h-service)"/>
+      <rect x="928" y="88" width="176" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5"/>
+      <rect x="936" y="96" width="24" height="12" rx="2" fill="var(--paper)" stroke="var(--service-line)" stroke-width="0.8" opacity="0.55"/>
+      <rect x="88" y="272" width="176" height="64" rx="6" fill="var(--paper)"/>
+      <rect x="88" y="272" width="176" height="64" rx="6" fill="var(--service-fill)"/>
+      <rect x="88" y="272" width="176" height="64" rx="6" fill="url(#h-service)"/>
+      <rect x="88" y="272" width="176" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5"/>
+      <rect x="96" y="280" width="24" height="12" rx="2" fill="var(--paper)" stroke="var(--service-line)" stroke-width="0.8" opacity="0.55"/>
+      <rect x="368" y="272" width="176" height="64" rx="6" fill="var(--paper)"/>
+      <rect x="368" y="272" width="176" height="64" rx="6" fill="var(--service-fill)"/>
+      <rect x="368" y="272" width="176" height="64" rx="6" fill="url(#h-service)"/>
+      <rect x="368" y="272" width="176" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5"/>
+      <rect x="376" y="280" width="32" height="12" rx="2" fill="var(--paper)" stroke="var(--service-line)" stroke-width="0.8" opacity="0.55"/>
+      <rect x="632" y="272" width="208" height="64" rx="6" fill="var(--paper)"/>
+      <rect x="632" y="272" width="208" height="64" rx="6" fill="var(--platform-fill)"/>
+      <rect x="632" y="272" width="208" height="64" rx="6" fill="url(#h-platform)"/>
+      <rect x="632" y="272" width="208" height="64" rx="6" fill="none" stroke="var(--platform-line)" stroke-width="2.5"/>
+      <rect x="640" y="280" width="24" height="12" rx="2" fill="var(--paper)" stroke="var(--platform-line)" stroke-width="0.8" opacity="0.55"/>
+      <rect x="928" y="272" width="176" height="64" rx="6" fill="var(--paper)"/>
+      <rect x="928" y="272" width="176" height="64" rx="6" fill="var(--service-fill)"/>
+      <rect x="928" y="272" width="176" height="64" rx="6" fill="url(#h-service)"/>
+      <rect x="928" y="272" width="176" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5"/>
+      <rect x="936" y="280" width="20" height="12" rx="2" fill="var(--paper)" stroke="var(--service-line)" stroke-width="0.8" opacity="0.55"/>
+      <rect x="88" y="408" width="176" height="64" rx="6" fill="var(--paper)"/>
+      <rect x="88" y="408" width="176" height="64" rx="6" fill="var(--artefact-fill)"/>
+      <rect x="88" y="408" width="176" height="64" rx="6" fill="url(#h-artefact)"/>
+      <rect x="88" y="408" width="176" height="64" rx="6" fill="none" stroke="var(--artefact-line)" stroke-width="1.5"/>
+      <rect x="96" y="416" width="24" height="12" rx="2" fill="var(--paper)" stroke="var(--artefact-line)" stroke-width="0.8" opacity="0.55"/>
+      <rect x="352" y="408" width="208" height="64" rx="6" fill="var(--paper)"/>
+      <rect x="352" y="408" width="208" height="64" rx="6" fill="var(--service-fill)"/>
+      <rect x="352" y="408" width="208" height="64" rx="6" fill="url(#h-service)"/>
+      <rect x="352" y="408" width="208" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5"/>
+      <rect x="360" y="416" width="28" height="12" rx="2" fill="var(--paper)" stroke="var(--service-line)" stroke-width="0.8" opacity="0.55"/>
+      <rect x="632" y="408" width="208" height="64" rx="6" fill="var(--paper)"/>
+      <rect x="632" y="408" width="208" height="64" rx="6" fill="var(--service-fill)"/>
+      <rect x="632" y="408" width="208" height="64" rx="6" fill="url(#h-service)"/>
+      <rect x="632" y="408" width="208" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5"/>
+      <rect x="640" y="416" width="28" height="12" rx="2" fill="var(--paper)" stroke="var(--service-line)" stroke-width="0.8" opacity="0.55"/>
+      <rect x="88" y="504" width="1016" height="40" rx="6" fill="var(--muted-fill)" stroke="var(--muted-line)" stroke-width="1.5"/>
+      <line x1="56" y1="592" x2="1144" y2="592" stroke="var(--rule)" stroke-width="0.8"/>
+      <rect x="176" y="604" width="12" height="12" rx="2" fill="var(--platform-fill)"/>
+      <rect x="176" y="604" width="12" height="12" rx="2" fill="url(#h-platform)"/>
+      <rect x="176" y="604" width="12" height="12" rx="2" fill="none" stroke="var(--platform-line)" stroke-width="2.5"/>
+      <rect x="336" y="604" width="12" height="12" rx="2" fill="var(--consumer-fill)"/>
+      <rect x="336" y="604" width="12" height="12" rx="2" fill="url(#h-consumer)"/>
+      <rect x="336" y="604" width="12" height="12" rx="2" fill="none" stroke="var(--consumer-line)" stroke-width="1.5"/>
+      <rect x="592" y="604" width="12" height="12" rx="2" fill="var(--service-fill)"/>
+      <rect x="592" y="604" width="12" height="12" rx="2" fill="url(#h-service)"/>
+      <rect x="592" y="604" width="12" height="12" rx="2" fill="none" stroke="var(--service-line)" stroke-width="1.5"/>
+      <rect x="784" y="604" width="12" height="12" rx="2" fill="var(--artefact-fill)"/>
+      <rect x="784" y="604" width="12" height="12" rx="2" fill="url(#h-artefact)"/>
+      <rect x="784" y="604" width="12" height="12" rx="2" fill="none" stroke="var(--artefact-line)" stroke-width="1.5"/>
+      <line x1="948" y1="610" x2="964" y2="610" stroke="var(--platform-line)" stroke-width="1.2"/>
+      </g>
+      <g filter="url(#sketch-b)">
+      <rect x="88" y="88" width="176" height="64" rx="6" fill="none" stroke="var(--consumer-line)" stroke-width="1.5" opacity="0.7"/>
+      <rect x="632" y="88" width="208" height="64" rx="6" fill="none" stroke="var(--consumer-line)" stroke-width="1.5" opacity="0.7"/>
+      <rect x="928" y="88" width="176" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5" opacity="0.7"/>
+      <rect x="88" y="272" width="176" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5" opacity="0.7"/>
+      <rect x="368" y="272" width="176" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5" opacity="0.7"/>
+      <rect x="632" y="272" width="208" height="64" rx="6" fill="none" stroke="var(--platform-line)" stroke-width="2.5" opacity="0.7"/>
+      <rect x="928" y="272" width="176" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5" opacity="0.7"/>
+      <rect x="88" y="408" width="176" height="64" rx="6" fill="none" stroke="var(--artefact-line)" stroke-width="1.5" opacity="0.7"/>
+      <rect x="352" y="408" width="208" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5" opacity="0.7"/>
+      <rect x="632" y="408" width="208" height="64" rx="6" fill="none" stroke="var(--service-line)" stroke-width="1.5" opacity="0.7"/>
+      <rect x="88" y="504" width="1016" height="40" rx="6" fill="none" stroke="var(--muted-line)" stroke-width="1.5" opacity="0.7"/>
+      </g>
+      <g>
+      <rect x="80" y="60" width="192" height="12" rx="2" fill="var(--zone-fill)"/>
+      <text x="176" y="69" fill="var(--zone-label)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.14em">SRC/UI &#183; BROWSER &#183; PIXELS &#183; REACT</text>
+      <rect x="80" y="244" width="332" height="12" rx="2" fill="var(--zone-fill)"/>
+      <text x="246" y="253" fill="var(--zone-label)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.14em">SRC/CORE &#183; ZERO RUNTIME DEPS &#183; STRICT SI &#183; RUNS IN BARE NODE</text>
+      <rect x="416" y="100" width="64" height="12" rx="2" fill="var(--paper)"/>
+      <text x="448" y="109" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">SPEC &#183; VIEW</text>
+      <rect x="856" y="100" width="56" height="12" rx="2" fill="var(--paper)"/>
+      <text x="884" y="109" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">DRAW 60/s</text>
+      <rect x="152" y="204" width="48" height="12" rx="2" fill="var(--paper)"/>
+      <text x="176" y="213" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">SPEC EDIT</text>
+      <rect x="700" y="184" width="44" height="12" rx="2" fill="var(--paper)"/>
+      <text x="722" y="193" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">ADVANCE</text>
+      <rect x="796" y="208" width="68" height="12" rx="2" fill="var(--paper)"/>
+      <text x="830" y="217" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">STATE &#183; MODES</text>
+      <rect x="300" y="284" width="32" height="12" rx="2" fill="var(--paper)"/>
+      <text x="316" y="293" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">SPEC</text>
+      <rect x="564" y="272" width="48" height="12" rx="2" fill="var(--paper)"/>
+      <text x="588" y="281" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">M &#183; C &#183; K</text>
+      <rect x="636" y="364" width="64" height="12" rx="2" fill="var(--paper)"/>
+      <text x="668" y="373" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">Mff Cff Kff</text>
+      <rect x="772" y="364" width="68" height="12" rx="2" fill="var(--paper)"/>
+      <text x="806" y="373" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">OMEGA &#183; ZETA</text>
+      <rect x="284" y="420" width="48" height="12" rx="2" fill="var(--paper)"/>
+      <text x="308" y="429" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">u &#183; udot</text>
+      <rect x="552" y="380" width="32" height="12" rx="2" fill="var(--paper)"/>
+      <text x="568" y="389" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">F(t)</text>
+      <rect x="864" y="284" width="40" height="12" rx="2" fill="var(--paper)"/>
+      <text x="884" y="293" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.06em">RK4 &#183; h</text>
+      <text x="110" y="105" fill="var(--consumer-line)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.08em">REACT</text>
+      <text x="176" y="127" fill="var(--ink)" font-size="14" font-family="var(--font-hand)" text-anchor="middle">App.tsx</text>
+      <text x="176" y="143" fill="var(--soft)" font-size="9" font-family="var(--font-mono)" text-anchor="middle">spec &#183; view &#183; stats</text>
+      <text x="652" y="105" fill="var(--consumer-line)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.08em">LOOP</text>
+      <text x="736" y="127" fill="var(--ink)" font-size="14" font-family="var(--font-hand)" text-anchor="middle">runner.ts</text>
+      <text x="736" y="143" fill="var(--soft)" font-size="9" font-family="var(--font-mono)" text-anchor="middle">requestAnimationFrame</text>
+      <text x="948" y="105" fill="var(--service-line)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.08em">DRAW</text>
+      <text x="1016" y="127" fill="var(--ink)" font-size="14" font-family="var(--font-hand)" text-anchor="middle">canvas/</text>
+      <text x="1016" y="143" fill="var(--soft)" font-size="9" font-family="var(--font-mono)" text-anchor="middle">chain &#183; pens &#183; bars &#183; trace</text>
+      <text x="108" y="289" fill="var(--service-line)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.08em">SPEC</text>
+      <text x="176" y="311" fill="var(--ink)" font-size="14" font-family="var(--font-hand)" text-anchor="middle">chain.ts &#183; edit.ts</text>
+      <text x="176" y="327" fill="var(--soft)" font-size="9" font-family="var(--font-mono)" text-anchor="middle">ChainSpec &#183; validate &#183; edits</text>
+      <text x="392" y="289" fill="var(--service-line)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.08em">MATRIX</text>
+      <text x="456" y="311" fill="var(--ink)" font-size="14" font-family="var(--font-hand)" text-anchor="middle">assemble.ts</text>
+      <text x="456" y="327" fill="var(--soft)" font-size="9" font-family="var(--font-mono)" text-anchor="middle">M &#183; C &#183; K, then partition</text>
+      <text x="652" y="289" fill="var(--platform-line)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.08em">CORE</text>
+      <text x="736" y="311" fill="var(--ink)" font-size="14" font-family="var(--font-hand)" text-anchor="middle">simulation.ts</text>
+      <text x="736" y="327" fill="var(--soft)" font-size="9" font-family="var(--font-mono)" text-anchor="middle">state &#183; advance &#183; energy</text>
+      <text x="946" y="289" fill="var(--service-line)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.08em">RK4</text>
+      <text x="1016" y="311" fill="var(--ink)" font-size="14" font-family="var(--font-hand)" text-anchor="middle">integrate.ts</text>
+      <text x="1016" y="327" fill="var(--soft)" font-size="9" font-family="var(--font-mono)" text-anchor="middle">fixed h &#183; accumulator</text>
+      <text x="108" y="425" fill="var(--artefact-line)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.08em">DATA</text>
+      <text x="176" y="447" fill="var(--ink)" font-size="14" font-family="var(--font-hand)" text-anchor="middle">signal.ts</text>
+      <text x="176" y="463" fill="var(--soft)" font-size="9" font-family="var(--font-mono)" text-anchor="middle">value + exact derivative</text>
+      <text x="374" y="425" fill="var(--service-line)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.08em">FORCE</text>
+      <text x="456" y="447" fill="var(--ink)" font-size="14" font-family="var(--font-hand)" text-anchor="middle">forces.ts</text>
+      <text x="456" y="463" fill="var(--soft)" font-size="9" font-family="var(--font-mono)" text-anchor="middle">Fext + Fact - Kfd&#183;u - Cfd&#183;udot</text>
+      <text x="654" y="425" fill="var(--service-line)" font-size="7" font-family="var(--font-mono)" text-anchor="middle" letter-spacing="0.08em">MODAL</text>
+      <text x="736" y="447" fill="var(--ink)" font-size="14" font-family="var(--font-hand)" text-anchor="middle">eigen/</text>
+      <text x="736" y="463" fill="var(--soft)" font-size="9" font-family="var(--font-mono)" text-anchor="middle">jacobi &#183; hqr &#183; exact damping</text>
+      <text x="112" y="529" fill="var(--muted-text)" font-size="14" font-family="var(--font-hand)">linalg.ts</text>
+      <text x="200" y="528" fill="var(--soft)" font-size="9" font-family="var(--font-mono)">Matrix &#183; Vec &#8212; bounds-checked accessors under noUncheckedIndexedAccess, so core/ holds no non-null assertion</text>
+      <text x="56" y="613" fill="var(--soft)" font-size="8" font-family="var(--font-mono)" letter-spacing="0.14em">LEGEND</text>
+      <text x="196" y="613" fill="var(--soft)" font-size="8" font-family="var(--font-mono)">Subject</text>
+      <text x="356" y="613" fill="var(--soft)" font-size="8" font-family="var(--font-mono)">Calls across the boundary</text>
+      <text x="612" y="613" fill="var(--soft)" font-size="8" font-family="var(--font-mono)">Module we own</text>
+      <text x="804" y="613" fill="var(--soft)" font-size="8" font-family="var(--font-mono)">Authored data</text>
+      <text x="972" y="613" fill="var(--soft)" font-size="8" font-family="var(--font-mono)">Boundary crossing</text>
+      </g>
+    </svg>
+    </div>
+
+    <p class="colophon">Drawn from src/ &#183; 10 of 20 modules &#183; theme.ts, appearance.ts, view.ts, presets.ts and controls/ elided</p>
+  </div>
+</body>
+</html>
