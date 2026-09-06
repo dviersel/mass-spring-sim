@@ -7,6 +7,7 @@ import {
   systemPrefersDark,
   watchSystemTheme,
 } from '../../src/ui/appearance'
+import { TRACE_MODES, nextTraceMode } from '../../src/ui/view'
 
 /**
  * Theme preference handling, exercised without a DOM.
@@ -154,5 +155,30 @@ describe('watching the system', () => {
     vi.stubGlobal('window', {})
     const stop = watchSystemTheme(() => {})
     expect(() => stop()).not.toThrow()
+  })
+})
+
+describe('trace mode cycle', () => {
+  it('advances through every reading and wraps', () => {
+    // The pane advances on click and the select offers the same list; one
+    // source, so the two cannot come to disagree about order or wording.
+    const order = TRACE_MODES.map((entry) => entry.value)
+    expect(order).toEqual(['single', 'modal', 'sum', 'all'])
+
+    const visited: string[] = []
+    let mode = order[0] as (typeof order)[number]
+    for (let i = 0; i < order.length; i++) {
+      visited.push(mode)
+      mode = nextTraceMode(mode)
+    }
+    expect(visited).toEqual(order)
+    // A full lap returns to where it started.
+    expect(mode).toBe('single')
+  })
+
+  it('every reading has a label for the select', () => {
+    for (const entry of TRACE_MODES) {
+      expect(entry.label.length).toBeGreaterThan(0)
+    }
   })
 })

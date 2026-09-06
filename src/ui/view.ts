@@ -78,6 +78,25 @@ export type SeismographMode = 'off' | 'pens' | 'ribbon'
 export type ParticipationScale = 'linear' | 'log'
 export type TraceMode = 'single' | 'modal' | 'sum' | 'all'
 
+/**
+ * The trace readings in the order they cycle, with the names the interface uses.
+ *
+ * One list, so the select and the click-to-advance cannot drift into disagreeing
+ * about either the order or the wording.
+ */
+export const TRACE_MODES: readonly { readonly value: TraceMode; readonly label: string }[] = [
+  { value: 'single', label: 'one node' },
+  { value: 'modal', label: 'modal harmonics' },
+  { value: 'sum', label: 'sum of all nodes' },
+  { value: 'all', label: 'all nodes' },
+]
+
+/** The next reading round the cycle, wrapping at the end. */
+export function nextTraceMode(mode: TraceMode): TraceMode {
+  const at = TRACE_MODES.findIndex((entry) => entry.value === mode)
+  return TRACE_MODES[(at + 1) % TRACE_MODES.length]?.value ?? 'single'
+}
+
 export const DEFAULT_VIEW: ViewSettings = {
   // Mode 1 sits near 7 Hz and mode 9 near 44 Hz. At 0.15 the fundamental reads
   // as roughly one hertz on screen -- slow enough to follow, fast enough that a

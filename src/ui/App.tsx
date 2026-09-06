@@ -40,7 +40,9 @@ import {
   DEFAULT_VIEW,
   EXAGGERATION_RANGE,
   TIME_SCALE_RANGE,
+  TRACE_MODES,
   fromLogSlider,
+  nextTraceMode,
   toLogSlider,
   type ViewSettings,
 } from './view'
@@ -279,7 +281,7 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
               <canvas
                 ref={participationCanvas}
                 className="clickable"
-                title="Click a bar to trace the node of that number"
+                title="Click a bar to trace and select the node of that number"
                 onClick={(event) => {
                   const canvas = event.currentTarget
                   const bounds = canvas.getBoundingClientRect()
@@ -294,16 +296,25 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                   // counted differently -- a chain can have fewer nodes than it
                   // has modes only in degenerate cases, but the clamp costs
                   // nothing and a stale click must not point off the end.
-                  patchView({
-                    tracedNode: Math.min(bar + 1, spec.nodes.length - 1),
-                  })
+                  const target = Math.min(bar + 1, spec.nodes.length - 1)
+                  patchView({ tracedNode: target })
+                  // Trace it AND open it for editing. Two selections that always
+                  // moved separately, when one click plainly means both.
+                  setSelectedNode(target)
                 }}
               />
               <div className="caption right">modal participation</div>
             </div>
             <div className="canvas-wrap short-canvas">
-              <canvas ref={traceCanvas} />
-              <div className="caption right">time trace</div>
+              <canvas
+                ref={traceCanvas}
+                className="clickable"
+                title="Click to change what the trace plots"
+                onClick={() => patchView({ traceMode: nextTraceMode(view.traceMode) })}
+              />
+              <div className="caption right">
+                time trace · {TRACE_MODES.find((m) => m.value === view.traceMode)?.label}
+              </div>
             </div>
           </div>
         </div>
@@ -527,10 +538,11 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                   patchView({ traceMode: e.target.value as ViewSettings['traceMode'] })
                 }
               >
-                <option value="single">one node</option>
-                <option value="modal">modal harmonics</option>
-                <option value="sum">sum of all nodes</option>
-                <option value="all">all nodes</option>
+                {TRACE_MODES.map((entry) => (
+                  <option key={entry.value} value={entry.value}>
+                    {entry.label}
+                  </option>
+                ))}
               </select>
             </label>
             <div className="hint-text full">
