@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PRESETS, defaultChain, naturalFrequenciesHz } from '../../src/ui/presets'
+import { NODE_MASS, PRESETS, TETHER, defaultChain, naturalFrequenciesHz } from '../../src/ui/presets'
 import { Simulation } from '../../src/core/simulation'
 import { hasTimeVaryingStiffness, segmentStiffness } from '../../src/core/chain'
 import { resizeChain } from '../../src/core/edit'
@@ -348,5 +348,152 @@ describe('preset: transverse plucked string', () => {
       // Frequency goes as sqrt(T), so four times the tension doubles it.
       expect(tighter[i] as number).toBeCloseTo(2 * (original[i] as number), 9)
     }
+  })
+})
+
+describe('diatomic chain', () => {
+  it('opens a band gap with nothing at all inside it', () => {
+    // The hint claims ten modes from 3 to 27 Hz, ten more from 46 to 53, and
+    // nothing between. All three halves of that are checked here.
+    const frequencies = naturalFrequenciesHz(preset('diatomic').spec)
+    expect(frequencies).toHaveLength(20)
+
+    const acoustic = frequencies.filter((f) => f < 30)
+    const optical = frequencies.filter((f) => f > 40)
+    expect(acoustic).toHaveLength(10)
+    expect(optical).toHaveLength(10)
+
+    expect(Math.min(...acoustic)).toBeGreaterThan(3)
+    expect(Math.max(...acoustic)).toBeLessThan(27)
+    expect(Math.min(...optical)).toBeGreaterThan(46)
+    expect(Math.max(...optical)).toBeLessThan(54)
+    expect(frequencies.filter((f) => f >= 27 && f <= 46)).toEqual([])
+  })
+})
+
+describe('light defect', () => {
+  it('splits one mode above where the perfect chain stops', () => {
+    const spec = preset('light-defect').spec
+    const perfect: typeof spec = {
+      ...spec,
+      nodes: spec.nodes.map((n, i) => (i === 10 ? { ...n, mass: NODE_MASS } : n)),
+    }
+    const defective = naturalFrequenciesHz(spec)
+    const band = naturalFrequenciesHz(perfect)
+
+    // 96 Hz against a band that stops at 64: one mode, well clear of the top.
+    expect(Math.max(...band)).toBeGreaterThan(60)
+    expect(Math.max(...band)).toBeLessThan(66)
+    expect(Math.max(...defective)).toBeGreaterThan(90)
+    expect(defective.filter((f) => f > Math.max(...band) + 1)).toHaveLength(1)
+  })
+
+  it('localises that mode on the defect', () => {
+    const sim = new Simulation(preset('light-defect').spec)
+    const shapes = sim.modeShapes
+    const top = sim.dof - 1
+    // Ends are driven, so free node i is degree of freedom i - 1.
+    const at = (node: number): number => Math.abs(shapes.get(node - 1, top))
+
+    expect(at(10)).toBeGreaterThan(4 * at(8))
+    expect(at(8)).toBeGreaterThan(at(6))
+    expect(at(10)).toBeGreaterThan(20 * at(5))
+  })
+})
+
+describe('tethered chain', () => {
+  it('lifts every mode above the cutoff', () => {
+    const frequencies = naturalFrequenciesHz(preset('tethered').spec)
+    const cutoff = Math.sqrt(TETHER / NODE_MASS) / (2 * Math.PI)
+
+    expect(cutoff).toBeGreaterThan(31)
+    expect(cutoff).toBeLessThan(33)
+    expect(Math.min(...frequencies)).toBeGreaterThan(cutoff)
+    expect(Math.min(...frequencies)).toBeLessThan(34)
+    // The same chain untethered starts far below it.
+    expect(naturalFrequenciesHz(defaultChain())[0] as number).toBeLessThan(8)
+  })
+
+  it('drives below the cutoff and the motion dies away at the evanescent rate', () => {
+    // Not damped away -- there is simply no mode down there to carry it. Below
+    // the cutoff the wavenumber goes imaginary, q = i.kappa, and the standing
+    // profile falls by exp(kappa.a) per node, from
+    //
+    //   omega^2 = omega_0^2 - (4k/m) sinh^2(kappa.a / 2)
+    //
+    // which for this chain driven at 20 Hz is a factor of 2.85 each step along.
+    const sim = new Simulation(preset('tethered').spec)
+    const drive = 2 * Math.PI * 20
+    const cutoffSquared = TETHER / NODE_MASS
+    const coupling = (4 * segmentStiffness(sim.chain, 0)) / NODE_MASS
+    const kappaA = 2 * Math.asinh(Math.sqrt((cutoffSquared - drive ** 2) / coupling))
+    const perNode = Math.exp(kappaA)
+
+    // The start of a sine is a step in velocity, which rings every mode the
+    // chain does have. Those propagate, so the profile only becomes evanescent
+    // once that transient is gone.
+    run(sim, 6)
+
+    const peak = new Float64Array(sim.chain.nodes.length)
+    for (let s = 0; s < 700; s++) {
+      sim.step(sim.timestep)
+      const displacement = sim.nodeDisplacements()
+      for (let i = 0; i < peak.length; i++) {
+        peak[i] = Math.max(peak[i] as number, Math.abs(displacement[i] as number))
+      }
+    }
+
+    expect(perNode).toBeCloseTo(2.85, 1)
+    const measured = ((peak[1] as number) / (peak[4] as number)) ** (1 / 3)
+    expect(measured).toBeGreaterThan(perNode * 0.95)
+    expect(measured).toBeLessThan(perNode * 1.05)
+  })
+})
+
+describe('matched end', () => {
+  it('rings up far less than the same chain with a reflecting end', () => {
+    const matched = preset('matched-end').spec
+    const reflecting: typeof matched = {
+      ...matched,
+      nodes: matched.nodes.map((n) => ({ ...n, groundDamping: 0 })),
+    }
+    const peakEnergy = (spec: typeof matched): number => {
+      const sim = new Simulation(spec)
+      let peak = 0
+      for (let s = 0; s < 6000; s++) {
+        sim.step(sim.timestep)
+        peak = Math.max(peak, sim.energy())
+      }
+      return peak
+    }
+    expect(peakEnergy(matched)).toBeLessThan(peakEnergy(reflecting) / 5)
+  })
+})
+
+describe('non-proportional damping', () => {
+  it('is not classically damped, and leaks out of the mode it started in', () => {
+    const { spec, startMode } = preset('non-proportional-damping')
+    const sim = new Simulation(spec)
+    expect(sim.modalAnalysis.classicallyDamped).toBe(false)
+    expect(sim.modalAnalysis.nonProportionality).toBeGreaterThan(0.01)
+
+    const seeded = startMode?.mode ?? 3
+    const leak = (simulation: Simulation): number => {
+      simulation.setStateFromMode(seeded - 1, 0.003)
+      const start = simulation.modalAmplitudes()[seeded - 1] as number
+      let other = 0
+      for (let s = 0; s < 400; s++) {
+        run(simulation, 0.002)
+        const amplitudes = simulation.modalAmplitudes()
+        for (let r = 0; r < amplitudes.length; r++) {
+          if (r !== seeded - 1) other = Math.max(other, amplitudes[r] as number)
+        }
+      }
+      return other / start
+    }
+
+    // Evenly damped, the other modes stay dark for as long as you watch.
+    expect(leak(new Simulation(defaultChain()))).toBeLessThan(1e-6)
+    expect(leak(sim)).toBeGreaterThan(0.01)
   })
 })

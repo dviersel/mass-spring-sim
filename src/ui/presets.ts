@@ -7,14 +7,18 @@
  */
 
 import { assembleChain } from '../core/assemble'
-import { uniformChain, type ChainSpec } from '../core/chain'
+import { segmentDamping, segmentStiffness, uniformChain, type ChainSpec } from '../core/chain'
 import { analyseModes } from '../core/eigen/modal'
 import {
   setNodeForce,
+  setNodeGroundDamping,
+  setNodeMass,
   setTotals,
   setNodeMotion,
   setSegmentActuator,
   setSegmentStiffnessModulation,
+  tetherAll,
+  updateSegment,
 } from '../core/edit'
 import { chirp, sine } from '../core/signal'
 import type { ViewSettings } from './view'
@@ -99,6 +103,11 @@ const SWEEP_SECONDS = 45
  * outruns the screen in a couple of seconds.
  */
 const PUMP_DEPTH = 0.12
+
+/** Mass ratio of the diatomic chain. Three is wide enough to open a clear gap. */
+const HEAVY_RATIO = 3
+/** On-site spring for the tethered chain, N/m. Puts the cutoff near 32 Hz. */
+export const TETHER = 2000
 
 export const PRESETS: readonly Preset[] = [
   {
@@ -226,6 +235,103 @@ export const PRESETS: readonly Preset[] = [
         // there is nothing to amplify.
         startMode: { mode: 1, amplitude: 0.0002 },
         view: { timeScale: 0.15, displacementExaggeration: 60, tracedNode: 5 },
+      }
+    },
+  },
+  {
+    id: 'diatomic',
+    name: 'Alternating masses: a forbidden band',
+    hint: 'Every other mass is three times heavier, and nothing else changes. The spectrum tears in two: ten modes from 3 to 27 Hz, ten more from 46 to 53, and nothing whatsoever between them. The sweep makes the hole audible in time -- it lights the lower branch, goes completely quiet through the gap, then lights the upper one. A wave in that band has no mode to travel in, so it cannot propagate at all. The mass pattern alone did this.',
+    build: () => {
+      const base = uniformChain({
+        nodeCount: 22,
+        length: CHAIN_LENGTH,
+        totalStiffness: TOTAL_STIFFNESS,
+        totalDamping: TOTAL_DAMPING,
+        mass: NODE_MASS,
+        drivenNodes: [0, 21],
+      })
+      let spec = base
+      // Alternate along the interior. Both ends stay driven, so the pattern is
+      // the only thing distinguishing this from the plain chain.
+      for (let i = 2; i < 21; i += 2) spec = setNodeMass(spec, i, NODE_MASS * HEAVY_RATIO)
+
+      return {
+        spec: setNodeMotion(spec, 0, chirp(2e-4, 3, 55, 60)),
+        view: { timeScale: 0.15, displacementExaggeration: 400, tracedNode: 11 },
+      }
+    },
+  },
+  {
+    id: 'light-defect',
+    name: 'A light mass traps a mode',
+    hint: 'One interior mass at a quarter of the others. A single mode splits off above the band -- 96 Hz, where the perfect chain stops at 64 -- and it is localised: the defect swings hard while its neighbours barely move, the amplitude dying away in both directions. Released into it, the chain rings in one small region and the rest stays nearly still. A HEAVY defect will not do this: the acoustic band already reaches down to zero, so there is no room below it to push a mode into, and only a light defect can push one out of the top.',
+    build: () => {
+      const base = uniformChain({
+        nodeCount: 21,
+        length: CHAIN_LENGTH,
+        totalStiffness: TOTAL_STIFFNESS,
+        totalDamping: TOTAL_DAMPING,
+        mass: NODE_MASS,
+        drivenNodes: [0, 20],
+      })
+      return {
+        spec: setNodeMass(base, 10, NODE_MASS / 4),
+        // The split-off mode is the highest one, which is the whole point.
+        startMode: { mode: 19, amplitude: 0.002 },
+        view: { timeScale: 0.02, displacementExaggeration: 300, tracedNode: 10 },
+      }
+    },
+  },
+  {
+    id: 'tethered',
+    name: 'Tethered chain: a cutoff frequency',
+    hint: 'Every mass is also on a spring to ground. That one on-site term lifts the entire spectrum: the slowest mode is 33 Hz where the same chain untethered starts at 7. Below the cutoff sqrt(k_g/m), about 32 Hz, no wave propagates at all -- and the shaker here runs at 20 Hz, underneath it. Watch the motion die away with distance from the driven end instead of travelling down the chain. That is an evanescent wave: not damped away, but with nowhere to go.',
+    build: () => {
+      const spec = tetherAll(defaultChain(), TETHER)
+      return {
+        spec: setNodeMotion(spec, 0, sine(6e-4, 20)),
+        view: { timeScale: 0.05, displacementExaggeration: 600, tracedNode: 3 },
+      }
+    },
+  },
+  {
+    id: 'matched-end',
+    name: 'An end that absorbs instead of reflecting',
+    hint: 'The far end carries a dashpot to ground at sqrt(k.m), the chain\'s characteristic impedance, and the near end is driven at the chain\'s own fundamental. A reflecting end would build a standing wave and ring up to a large amplitude; here the wave arrives, is absorbed, and never comes back, so the response settles to a small travelling one. Matching is exact only for long waves -- near the top of the band the lattice is dispersive and some reflection returns. This is also the one damping in the system that does not share the spring connectivity, so it makes the chain non-classically damped by construction.',
+    build: () => {
+      const base = uniformChain({
+        nodeCount: NODE_COUNT,
+        length: CHAIN_LENGTH,
+        totalStiffness: TOTAL_STIFFNESS,
+        totalDamping: TOTAL_DAMPING,
+        mass: NODE_MASS,
+        drivenNodes: [0],
+      })
+      const impedance = Math.sqrt(segmentStiffness(base, 0) * NODE_MASS)
+      const fundamental = naturalFrequenciesHz(base)[0] ?? 3.4
+
+      return {
+        spec: setNodeMotion(
+          setNodeGroundDamping(base, NODE_COUNT - 1, impedance),
+          0,
+          sine(4e-4, fundamental),
+        ),
+        view: { timeScale: 0.1, displacementExaggeration: 400, tracedNode: 5 },
+      }
+    },
+  },
+  {
+    id: 'non-proportional-damping',
+    name: 'Damping that breaks the mode shapes',
+    hint: 'One segment given six times the damping of the rest, so c/k is no longer uniform along the spring. The chain stops being classically damped, and that is not bookkeeping: released into mode 3 alone, it does not stay there. Other bars light up as it decays, because the damping couples the modes that the springs had kept independent. With the damping spread evenly they would stay dark for as long as you watched. The readout flags the regime, and the ratios come from the exact state-space spectrum rather than from projecting C onto shapes it no longer fits.',
+    build: () => {
+      const base = defaultChain()
+      const heavy = segmentDamping(base, 4) * 6
+      return {
+        spec: updateSegment(base, 4, { dampingOverride: heavy }),
+        startMode: { mode: 3, amplitude: 0.003 },
+        view: { timeScale: 0.05, displacementExaggeration: 120, tracedNode: 5 },
       }
     },
   },
