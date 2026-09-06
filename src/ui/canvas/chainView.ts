@@ -40,6 +40,17 @@ const PAD_Y = 26
  * space for the traces.
  */
 const SEISMOGRAPH_FOOT = 34
+/**
+ * How far an inline overlay tick reaches either side of the axis.
+ *
+ * Both ends clear the coil amplitude of 9 and the node marker, so a tick stays
+ * readable even where a mode puts a ghost position straight under its node --
+ * which is itself worth seeing, since it means that node barely moves in this
+ * mode. Asymmetric because the lane below the axis belongs to the node-number
+ * labels at `axisY + 24`.
+ */
+const OVERLAY_TICK_UP = 20
+const OVERLAY_TICK_DOWN = 13
 
 interface Layout {
   readonly axisPxPerMetre: number
@@ -271,15 +282,26 @@ function drawInline(
   // The reference shape, as ghost positions along the axis. Drawn here as well
   // as in the perpendicular view, so selecting a mode overlay never silently
   // does nothing just because of which drawing is showing.
+  //
+  // Ticks, not the dashed curve the perpendicular view uses: inline, every
+  // ghost position lies ON the axis, so a curve through them would be a
+  // straight horizontal line stating nothing. A tick crosses the spring rather
+  // than running along it, and reaches past the coils, so it reads as an
+  // annotation. Rings were tried and fail for the opposite reason -- at radius
+  // 8.5 against a coil amplitude of 9 they sit exactly in the zigzag and read
+  // as part of the spring.
   if (frame.overlay !== null) {
     ctx.save()
     ctx.strokeStyle = COLORS.overlay
-    ctx.globalAlpha = 0.55
+    ctx.globalAlpha = 0.8
     ctx.lineWidth = 1.5
+    // Dashed, matching the perpendicular curve and what the control promises.
+    ctx.setLineDash([3, 3])
     for (let i = 0; i < n; i++) {
       const x = axisX(frame, l, i) + (frame.overlay[i] as number) * l.displacementPxPerMetre
       ctx.beginPath()
-      ctx.arc(x, l.axisY, 8.5, 0, Math.PI * 2)
+      ctx.moveTo(x, l.axisY - OVERLAY_TICK_UP)
+      ctx.lineTo(x, l.axisY + OVERLAY_TICK_DOWN)
       ctx.stroke()
     }
     ctx.restore()

@@ -255,6 +255,15 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                 : view.orientation === 'perpendicular'
                   ? 'longitudinal motion, plotted perpendicular for legibility — the masses really move along the axis'
                   : 'longitudinal motion, drawn along the spring axis — true, and harder to read'}
+              {/* The overlay is drawn in the overlay colour and nothing else on
+                  the canvas explains it, so name it here rather than leaving
+                  the marks to be read as an artefact of the drawing. */}
+              {view.overlayMode !== null && (
+                <span style={{ color: 'var(--overlay)' }}>
+                  {' · mode '}
+                  {view.overlayMode} reference shape
+                </span>
+              )}
             </div>
           </div>
           <div className="bottom">
