@@ -56,10 +56,27 @@ export interface ViewSettings {
    * is merely small and one that cannot respond at all.
    */
   readonly participationScale: ParticipationScale
+  /**
+   * What the time-trace pane plots.
+   *
+   * `single` follows one node. The other three are ways of relating the many
+   * traces to each other, in both directions:
+   *
+   *  - `modal` takes the traced node apart, drawing one faint harmonic per mode
+   *    -- each a decaying sinusoid at its own damped frequency -- with their sum
+   *    laid over the top. The sum IS the trace, exactly, which is the claim.
+   *  - `sum` goes the other way and adds every node together. Modes that are
+   *    antisymmetric about the centre cancel in that sum, so the composite is
+   *    visibly simpler than any pen that went into it.
+   *  - `all` overlays every node on shared axes, comparing them directly rather
+   *    than one at a time.
+   */
+  readonly traceMode: TraceMode
 }
 
 export type SeismographMode = 'off' | 'pens' | 'ribbon'
 export type ParticipationScale = 'linear' | 'log'
+export type TraceMode = 'single' | 'modal' | 'sum' | 'all'
 
 export const DEFAULT_VIEW: ViewSettings = {
   // Mode 1 sits near 7 Hz and mode 9 near 44 Hz. At 0.15 the fundamental reads
@@ -80,6 +97,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   // and the ribbon is a step away when the chain should read as one surface.
   seismograph: 'pens',
   participationScale: 'log',
+  traceMode: 'single',
 }
 
 export const TIME_SCALE_RANGE = { min: 0.005, max: 1 } as const

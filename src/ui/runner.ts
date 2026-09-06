@@ -15,7 +15,7 @@ import type { ChainSpec } from '../core/chain'
 import type { ModeSummary } from '../core/eigen/modal'
 import { drawChain } from './canvas/chainView'
 import { drawParticipation } from './canvas/participation'
-import { TraceBuffer, drawTrace } from './canvas/trace'
+import { TraceBuffer, drawTrace, type ModalSource } from './canvas/trace'
 import { NodeTraceBuffer } from './canvas/seismograph'
 import type { ViewSettings } from './view'
 
@@ -53,8 +53,17 @@ export class Runner {
   private lastTimestamp: number | null = null
 
   private trace = new TraceBuffer()
-  /** Whole-chain history for the seismograph pens. */
+  /** Whole-chain history for the seismograph pens, and the multi-node traces. */
   private history: NodeTraceBuffer
+  /**
+   * Signed modal coordinates over time, one channel per mode.
+   *
+   * Kept as coordinates rather than as contributions to a particular node, so
+   * changing the traced node re-reads the same history instead of discarding
+   * it: the mode shape is applied at draw time.
+   */
+  private modalHistory: NodeTraceBuffer
+  private modalScratch: Float64Array
   private lastTraceSample = -Infinity
 
   private displacements: Float64Array
@@ -74,6 +83,8 @@ export class Runner {
     this.simulation = new Simulation(spec)
     this.view = view
     this.history = new NodeTraceBuffer(spec.nodes.length)
+    this.modalHistory = new NodeTraceBuffer(this.simulation.dof)
+    this.modalScratch = new Float64Array(this.simulation.dof)
     this.displacements = new Float64Array(spec.nodes.length)
     this.amplitudes = new Float64Array(this.simulation.dof)
   }
@@ -120,8 +131,12 @@ export class Runner {
     // A resize clears the pens: past samples describe a chain with a different
     // number of nodes and cannot be replotted against this one.
     this.history.resize(spec.nodes.length)
+    // The modal history is indexed by mode, so it survives a change that leaves
+    // the degree-of-freedom count alone and is discarded by one that does not.
+    this.modalHistory.resize(this.simulation.dof)
     if (this.amplitudes.length !== this.simulation.dof) {
       this.amplitudes = new Float64Array(this.simulation.dof)
+      this.modalScratch = new Float64Array(this.simulation.dof)
       this.overlay = null
     }
   }
@@ -130,6 +145,7 @@ export class Runner {
     this.simulation.reset()
     this.trace.clear()
     this.history.clear()
+    this.modalHistory.clear()
     this.lastTraceSample = -Infinity
   }
 
@@ -138,6 +154,7 @@ export class Runner {
     this.simulation.setStateFromMode(mode - 1, amplitude)
     this.trace.clear()
     this.history.clear()
+    this.modalHistory.clear()
     this.lastTraceSample = -Infinity
   }
 
@@ -186,6 +203,8 @@ export class Runner {
         sim.nodeDisplacements(this.displacements)
         this.trace.push(sim.time, this.displacements[this.view.tracedNode] ?? 0)
         this.history.push(sim.time, this.displacements)
+        sim.modalCoordinates(this.modalScratch)
+        this.modalHistory.push(sim.time, this.modalScratch)
       })
     }
 
@@ -229,20 +248,85 @@ export class Runner {
     }
 
     if (this.canvases.trace !== null) {
-      let peak = 0
       const oldest = sim.time - this.view.traceWindow
-      this.trace.forEach((time, value) => {
-        if (time >= oldest) peak = Math.max(peak, Math.abs(value))
-      })
+      const modal = this.modalSource()
+
+      // Each reading spans a different range -- a sum over eleven nodes is much
+      // larger than any one of them -- so the scale follows what is actually
+      // drawn rather than always following the single node.
+      let peak = 0
+      if (this.view.traceMode === 'all') {
+        peak = this.history.peakWithin(oldest)
+      } else if (this.view.traceMode === 'sum') {
+        this.history.forEachSample((time, read) => {
+          if (time < oldest) return
+          let total = 0
+          for (let node = 0; node < this.history.nodes; node++) total += read(node)
+          peak = Math.max(peak, Math.abs(total))
+        })
+      } else if (this.view.traceMode === 'modal' && modal !== null && modal.unavailable === null) {
+        // A single harmonic can overshoot the sum it belongs to, so both matter.
+        this.modalHistory.forEachSample((time, read) => {
+          if (time < oldest) return
+          let total = 0
+          for (let mode = 0; mode < this.modalHistory.nodes; mode++) {
+            const contribution = (modal.shape[mode] ?? 0) * read(mode)
+            total += contribution
+            peak = Math.max(peak, Math.abs(contribution))
+          }
+          peak = Math.max(peak, Math.abs(total))
+        })
+      } else {
+        this.trace.forEach((time, value) => {
+          if (time >= oldest) peak = Math.max(peak, Math.abs(value))
+        })
+      }
+
       this.traceScale = autoRange(this.traceScale, peak)
       drawTrace(this.canvases.trace, {
+        mode: this.view.traceMode,
         buffer: this.trace,
+        history: this.history,
+        modal,
         now: sim.time,
         window: this.view.traceWindow,
         nodeIndex: this.view.tracedNode,
         scale: this.traceScale,
       })
     }
+  }
+
+  /**
+   * The traced node's share of each mode shape, or why there is not one.
+   *
+   * A driven node has no modal coordinates at all: its motion is imposed rather
+   * than solved for, so there is nothing to decompose. And while stiffness is
+   * modulating, the shapes describe a spring the chain no longer has.
+   */
+  private modalSource(): ModalSource | null {
+    const sim = this.simulation
+    const dof = sim.dof
+    if (dof === 0) {
+      return { coordinates: this.modalHistory, shape: new Float64Array(0), unavailable: 'no free nodes to decompose' }
+    }
+    if (!sim.modalAnalysisIsValid) {
+      return {
+        coordinates: this.modalHistory,
+        shape: new Float64Array(dof),
+        unavailable: 'modes are stale while stiffness varies',
+      }
+    }
+    const dofIndex = sim.chainMatrices.dofOfNode[this.view.tracedNode] ?? -1
+    if (dofIndex < 0) {
+      return {
+        coordinates: this.modalHistory,
+        shape: new Float64Array(dof),
+        unavailable: `node ${this.view.tracedNode} is driven — imposed, not composed`,
+      }
+    }
+    const shape = new Float64Array(dof)
+    for (let r = 0; r < dof; r++) shape[r] = sim.modeShapes.get(dofIndex, r)
+    return { coordinates: this.modalHistory, shape, unavailable: null }
   }
 
   emitStats(): void {

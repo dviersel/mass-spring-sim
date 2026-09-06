@@ -84,6 +84,22 @@ export class NodeTraceBuffer {
     }
   }
 
+  /**
+   * Visits each sample oldest-first with a reader for that sample's channels.
+   *
+   * For the readings that combine channels rather than drawing them separately
+   * -- summing the nodes, or adding one harmonic per mode. `read` is valid only
+   * for the duration of its visit.
+   */
+  forEachSample(visit: (time: number, read: (channel: number) => number) => void): void {
+    const start = (this.head - this.count + this.capacity) % this.capacity
+    for (let i = 0; i < this.count; i++) {
+      const index = (start + i) % this.capacity
+      const base = index * this.nodeCount
+      visit(this.times[index] as number, (channel) => this.values[base + channel] as number)
+    }
+  }
+
   /** Largest absolute displacement inside the window, across every node. */
   peakWithin(oldest: number): number {
     const start = (this.head - this.count + this.capacity) % this.capacity

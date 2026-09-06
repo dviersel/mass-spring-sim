@@ -519,6 +519,29 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                 <option value="ribbon">ribbon</option>
               </select>
             </label>
+            <label className="field">
+              <span>time trace</span>
+              <select
+                value={view.traceMode}
+                onChange={(e) =>
+                  patchView({ traceMode: e.target.value as ViewSettings['traceMode'] })
+                }
+              >
+                <option value="single">one node</option>
+                <option value="modal">modal harmonics</option>
+                <option value="sum">sum of all nodes</option>
+                <option value="all">all nodes</option>
+              </select>
+            </label>
+            <div className="hint-text full">
+              {view.traceMode === 'modal'
+                ? 'The traced node taken apart: one faint harmonic per mode, each a decaying sinusoid at its own damped frequency, with their sum drawn over the top. The sum is the trace — it is computed from the harmonics, not copied from the node, so the two lying on top of each other is a result rather than an assumption.'
+                : view.traceMode === 'sum'
+                  ? 'Every node added together. Modes antisymmetric about the centre cancel exactly in that sum, so the composite is simpler than any pen that went into it — with both ends alike, only the symmetric modes survive.'
+                  : view.traceMode === 'all'
+                    ? 'Every node on shared axes, in the same hue ramp the seismograph and the participation bars use.'
+                    : 'One node, followed through time. The horizontal axis is simulated seconds, so the time scale changes how fast it sweeps, not what it means.'}
+            </div>
             <div className="hint-text">
               A resonant mode routinely runs a hundred times anything else, so on a
               linear scale every other bar goes sub-pixel and reads as silent. The log

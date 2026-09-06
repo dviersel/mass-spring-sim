@@ -115,3 +115,31 @@ describe('NodeTraceBuffer', () => {
     expect(collect(buffer, 0)).toEqual([])
   })
 })
+
+describe('NodeTraceBuffer.forEachSample', () => {
+  it('visits every sample oldest-first with all its channels', () => {
+    const buffer = new NodeTraceBuffer(3)
+    for (let i = 0; i < 4; i++) {
+      buffer.push(i, Float64Array.from([i, i * 10, i * 100]))
+    }
+
+    const seen: string[] = []
+    buffer.forEachSample((time, read) => {
+      seen.push(`${time}:${read(0)},${read(1)},${read(2)}`)
+    })
+    expect(seen).toEqual(['0:0,0,0', '1:1,10,100', '2:2,20,200', '3:3,30,300'])
+  })
+
+  it('sees the same values as the per-channel walk', () => {
+    const buffer = new NodeTraceBuffer(2)
+    for (let i = 1; i <= 5; i++) buffer.push(i * 0.5, Float64Array.from([i, -i]))
+
+    const viaSample: number[] = []
+    buffer.forEachSample((_, read) => viaSample.push(read(1)))
+    const viaChannel: number[] = []
+    buffer.forEachNodeSample(1, (_, value) => viaChannel.push(value))
+
+    expect(viaSample).toEqual(viaChannel)
+    expect(viaSample).toEqual([-1, -2, -3, -4, -5])
+  })
+})
