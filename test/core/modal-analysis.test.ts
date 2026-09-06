@@ -8,6 +8,9 @@ import {
   type ChainSpec,
 } from '../../src/core/chain'
 import { undampedModes } from '../../src/core/eigen/jacobi'
+import { Simulation } from '../../src/core/simulation'
+import { setNodeForce } from '../../src/core/edit'
+import { sine } from '../../src/core/signal'
 
 /**
  * Exact natural frequencies of a uniform chain of N equal masses on identical
@@ -162,5 +165,124 @@ describe('definition of done 2: interior node 5 driven, chain decouples', () => 
       ).length
       expect(multiplicity).toBe(2)
     }
+  })
+})
+
+describe('modal coordinates', () => {
+  it('reconstructs the motion exactly when summed over modes', () => {
+    // The property the decomposed trace draws: every mode's contribution to a
+    // node, added up, IS that node's displacement. If this drifts, the picture
+    // stops being a decomposition and becomes a coincidence.
+    const spec = uniformChain({
+      nodeCount: 9,
+      length: 1,
+      totalStiffness: 100,
+      totalDamping: 0.09,
+      mass: 0.05,
+      drivenNodes: [0, 8],
+    })
+    const sim = new Simulation(setNodeForce(spec, 3, sine(0.02, 23)))
+    const matrices = sim.chainMatrices
+    const shapes = sim.modeShapes
+
+    for (let step = 0; step < 200; step++) {
+      sim.step(sim.timestep)
+      if (step % 40 !== 0) continue
+
+      const q = sim.modalCoordinates()
+      const displacement = sim.nodeDisplacements()
+      for (let a = 0; a < sim.dof; a++) {
+        let sum = 0
+        for (let r = 0; r < sim.dof; r++) sum += shapes.get(a, r) * (q[r] as number)
+        const node = matrices.freeIndices[a] as number
+        expect(sum).toBeCloseTo(displacement[node] as number, 12)
+      }
+    }
+  })
+
+  it('is signed, where the amplitude envelope is not', () => {
+    const spec = uniformChain({
+      nodeCount: 7,
+      length: 1,
+      totalStiffness: 100,
+      totalDamping: 0,
+      mass: 0.05,
+      drivenNodes: [0, 6],
+    })
+    const sim = new Simulation(spec)
+    sim.setStateFromMode(0, 0.002)
+
+    const seen = new Set<number>()
+    for (let step = 0; step < 600; step++) {
+      sim.step(sim.timestep)
+      seen.add(Math.sign(sim.modalCoordinates()[0] as number))
+      // The envelope never goes negative, whatever the coordinate does.
+      expect(sim.modalAmplitudes()[0] as number).toBeGreaterThanOrEqual(0)
+    }
+    expect(seen.has(1) && seen.has(-1)).toBe(true)
+  })
+})
+
+describe('summing every node', () => {
+  it('cancels the antisymmetric modes exactly', () => {
+    // What the summed trace claims on screen. A symmetric chain has mode shapes
+    // that alternate symmetric and antisymmetric about the centre; the
+    // antisymmetric ones sum to zero over the nodes, so adding every trace
+    // together is a filter that removes them and leaves a simpler composite.
+    const spec = uniformChain({
+      nodeCount: 11,
+      length: 1,
+      totalStiffness: 100,
+      totalDamping: 0,
+      mass: 0.05,
+      drivenNodes: [0, 10],
+    })
+    const sim = new Simulation(spec)
+    const shapes = sim.modeShapes
+
+    for (let r = 0; r < sim.dof; r++) {
+      let total = 0
+      let magnitude = 0
+      for (let a = 0; a < sim.dof; a++) {
+        total += shapes.get(a, r)
+        magnitude += Math.abs(shapes.get(a, r))
+      }
+      // Modes 2, 4, 6, 8 are the antisymmetric ones and vanish from the sum, at
+      // 1e-16 and below. The symmetric ones run from 1.0 down to 0.025 -- the
+      // highest alternates most and so sums to the least -- which is still
+      // thirteen orders of magnitude clear of cancelling. That separation, not
+      // either magnitude on its own, is what this test is about.
+      if ((r + 1) % 2 === 0) expect(Math.abs(total) / magnitude).toBeLessThan(1e-12)
+      else expect(Math.abs(total) / magnitude).toBeGreaterThan(1e-2)
+    }
+  })
+
+  it('leaves a summed trace with no trace of an antisymmetric mode', () => {
+    const spec = uniformChain({
+      nodeCount: 11,
+      length: 1,
+      totalStiffness: 100,
+      totalDamping: 0,
+      mass: 0.05,
+      drivenNodes: [0, 10],
+    })
+    // Released purely into mode 2, every node moves and yet their sum does not.
+    const sim = new Simulation(spec)
+    sim.setStateFromMode(1, 0.003)
+
+    let peakNode = 0
+    let peakSum = 0
+    for (let step = 0; step < 400; step++) {
+      sim.step(sim.timestep)
+      const displacement = sim.nodeDisplacements()
+      let total = 0
+      for (let i = 0; i < displacement.length; i++) {
+        total += displacement[i] as number
+        peakNode = Math.max(peakNode, Math.abs(displacement[i] as number))
+      }
+      peakSum = Math.max(peakSum, Math.abs(total))
+    }
+    expect(peakNode).toBeGreaterThan(1e-3)
+    expect(peakSum).toBeLessThan(peakNode * 1e-9)
   })
 })

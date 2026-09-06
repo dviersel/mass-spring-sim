@@ -278,6 +278,38 @@ export class Simulation {
   }
 
   /**
+   * Signed modal coordinates, `q_r = phi_r^T . M . x`.
+   *
+   * The companion to `modalAmplitudes`, which reports an envelope and so throws
+   * the sign away. The sign is the whole point here: the mode shapes are
+   * M-orthonormal and span the free block, so
+   *
+   *   x_i = sum_r phi_ir . q_r
+   *
+   * holds exactly, and a trace can be drawn as the superposition of one
+   * harmonic per mode that adds back up to the motion it decomposes.
+   *
+   * Meaningful only while the modes are, which `modalAnalysisIsValid` reports:
+   * under time-varying stiffness these coordinates project onto shapes the
+   * chain no longer has.
+   */
+  modalCoordinates(out?: Float64Array): Float64Array {
+    const dof = this.matrices.dof
+    const result = out ?? new Float64Array(dof)
+    const { Mff } = this.matrices
+    const shapes = this.analysis.shapes
+
+    for (let r = 0; r < dof; r++) {
+      let q = 0
+      for (let i = 0; i < dof; i++) {
+        q += shapes.get(i, r) * Mff.get(i, i) * this.x.get(i)
+      }
+      result[r] = q
+    }
+    return result
+  }
+
+  /**
    * How strongly each mode is currently excited, as the peak nodal displacement
    * that mode alone would produce, in metres.
    *
