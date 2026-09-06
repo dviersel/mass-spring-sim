@@ -80,6 +80,35 @@ export function setNodeMass(spec: ChainSpec, index: number, mass: number): Chain
 }
 
 /** Silence every excitation, leaving the chain's physical properties alone. */
+/** Tie one node to ground by a spring, N/m. Zero removes the tether. */
+export function setNodeGroundStiffness(
+  spec: ChainSpec,
+  index: number,
+  groundStiffness: number,
+): ChainSpec {
+  return updateNode(spec, index, { groundStiffness })
+}
+
+/** Tie one node to ground by a dashpot, N.s/m. Zero removes it. */
+export function setNodeGroundDamping(
+  spec: ChainSpec,
+  index: number,
+  groundDamping: number,
+): ChainSpec {
+  return updateNode(spec, index, { groundDamping })
+}
+
+/**
+ * Tether every node to ground with the same spring.
+ *
+ * The cutoff frequency is a property of the lattice, not of one node: it comes
+ * from every site being pulled back, so setting them one at a time is not a
+ * thing anyone wants to do by hand.
+ */
+export function tetherAll(spec: ChainSpec, groundStiffness: number): ChainSpec {
+  return { ...spec, nodes: spec.nodes.map((node) => ({ ...node, groundStiffness })) }
+}
+
 export function silenceExcitations(spec: ChainSpec): ChainSpec {
   return {
     ...spec,
@@ -188,6 +217,10 @@ export function resizeChain(spec: ChainSpec, nodeCount: number): ChainSpec {
       driven: isFirst || isLast ? end.driven : false,
       motion: isFirst || isLast ? end.motion : OFF,
       force: OFF,
+      // Tethers are material properties of a node, so they resample with the
+      // mass rather than being dropped.
+      groundStiffness: source?.groundStiffness,
+      groundDamping: source?.groundDamping,
     })
   }
 

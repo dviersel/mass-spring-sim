@@ -6,7 +6,7 @@ analysis. Browser only, no backend.
 
 ```sh
 bun run dev        # interactive
-bun run test       # 146 headless tests
+bun run test       # 193 headless tests
 bun run typecheck  # tsc --noEmit
 bun run build      # typecheck + static bundle
 ```
@@ -33,8 +33,19 @@ These are easy to break in ways tests elsewhere will not catch.
    what keeps `c/k` uniform and the system classically damped under uneven
    spacing.
 
-3. **Damping is a parallel dashpot.** C stamps in with K's exact connectivity.
-   Never a blend of M and K — no Rayleigh damping.
+3. **Damping is a parallel dashpot.** Segment damping stamps in with K's exact
+   connectivity, which is what keeps `c/k` uniform and the system classically
+   damped under uneven spacing. Never a blend of M and K — no Rayleigh damping.
+
+   **The one exception is on-site damping.** `ChainNode.groundDamping` is a
+   dashpot to ground: it resists a node's *absolute* velocity, so it lands on the
+   diagonal alone and does not follow K's connectivity. That is the whole point —
+   it is what lets a boundary absorb a wave instead of reflecting it, and it
+   makes the chain non-classically damped by construction, which is exactly the
+   case `eigen/hqr.ts` exists to get exactly right. Its partner in K is
+   `groundStiffness`, an on-site spring that gives the chain a cutoff frequency
+   below which nothing propagates. Both live on the NODE, not the chain, so they
+   survive a topology that stops being a line.
 
 4. **M, C and K must not depend on excitation.** Prescribed motion, forces and
    actuators reach the system only through the force vector, via

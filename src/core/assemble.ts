@@ -19,6 +19,8 @@ import { Matrix } from './linalg'
 import {
   type ChainSpec,
   nodeAt,
+  nodeGroundDamping,
+  nodeGroundStiffness,
   segmentAt,
   segmentCount,
   segmentDamping,
@@ -92,6 +94,20 @@ export function assembleChain(
     Cg.add(i, i + 1, -c)
     Cg.add(i + 1, i, -c)
     Cg.add(i + 1, i + 1, c)
+  }
+
+  // On-site terms: a tether to ground resists a node's ABSOLUTE displacement
+  // and velocity, so each stamps on the diagonal alone rather than as the
+  // four-corner pattern a segment produces. Stamped before partitioning, so a
+  // tether reaches Kff and Cff and never Kfd or Cfd -- it couples a node to
+  // ground, not to a prescribed neighbour.
+  //
+  // `stiffnessScale` deliberately does not reach here. Modulating the spring is
+  // a property of the spring's own segments; a tether is a separate element and
+  // stiffening one is a different experiment.
+  for (let i = 0; i < n; i++) {
+    Kg.add(i, i, nodeGroundStiffness(spec, i))
+    Cg.add(i, i, nodeGroundDamping(spec, i))
   }
 
   const freeIndices: number[] = []
@@ -217,5 +233,13 @@ export function rebuildStiffnessInPlace(
     }
     if (lowDof >= 0 && highSlot >= 0) Kfd.add(lowDof, highSlot, -k)
     if (highDof >= 0 && lowSlot >= 0) Kfd.add(highDof, lowSlot, -k)
+  }
+
+  // Tethers are never modulated, but Kff was just zeroed, so they have to be
+  // restamped or a tethered chain would lose its cutoff the instant any segment
+  // starts modulating -- and only then, which is the worst kind of bug.
+  for (let i = 0; i < spec.nodes.length; i++) {
+    const dofIndex = dofOfNode[i] as number
+    if (dofIndex >= 0) Kff.add(dofIndex, dofIndex, nodeGroundStiffness(spec, i))
   }
 }

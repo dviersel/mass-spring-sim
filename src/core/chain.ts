@@ -53,6 +53,31 @@ export interface ChainNode {
    * silently do nothing.
    */
   readonly force: SignalSpec
+
+  /**
+   * Stiffness of a spring tying this node to ground, N/m. Absent means none.
+   *
+   * ON-SITE rather than between neighbours: it resists this node's absolute
+   * displacement, not its motion relative to anything, so it stamps onto the
+   * diagonal alone. That is what makes it a different animal from segment
+   * stiffness -- it gives the chain a cutoff frequency `sqrt(k_g/m)` below
+   * which no wave propagates, where a plain chain carries arbitrarily slow ones.
+   *
+   * It lives on the NODE, not on the chain, so it survives a topology that
+   * stops being a line.
+   */
+  readonly groundStiffness?: number | undefined
+
+  /**
+   * Damping of a dashpot tying this node to ground, N.s/m. Absent means none.
+   *
+   * Also on-site, and the one place this system's damping does NOT share the
+   * stiffness connectivity: it resists absolute velocity. That is deliberate --
+   * it is what lets a boundary absorb rather than reflect -- and it makes the
+   * system non-classically damped by construction, which is exactly the case
+   * `eigen/hqr.ts` computes exactly.
+   */
+  readonly groundDamping?: number | undefined
 }
 
 export interface ChainSegment {
@@ -150,6 +175,21 @@ export function actuatorsApply(spec: ChainSpec): boolean {
   return spec.motionMode === 'longitudinal'
 }
 
+/** On-site stiffness tying node `i` to ground, N/m. Zero when it has none. */
+export function nodeGroundStiffness(spec: ChainSpec, i: number): number {
+  return nodeAt(spec, i).groundStiffness ?? 0
+}
+
+/** On-site damping tying node `i` to ground, N.s/m. Zero when it has none. */
+export function nodeGroundDamping(spec: ChainSpec, i: number): number {
+  return nodeAt(spec, i).groundDamping ?? 0
+}
+
+/** Whether any node is tied to ground by a spring. */
+export function hasGroundStiffness(spec: ChainSpec): boolean {
+  return spec.nodes.some((node) => (node.groundStiffness ?? 0) > 0)
+}
+
 /** Nominal segment damping, N.s/m, under the same inverse-length law. */
 export function segmentDamping(spec: ChainSpec, i: number): number {
   const override = segmentAt(spec, i).dampingOverride
@@ -203,14 +243,27 @@ export function validateChain(spec: ChainSpec): string[] {
       `expected ${spec.nodes.length - 1} segments for ${spec.nodes.length} nodes, got ${spec.segments.length}`,
     )
   }
+  // A tether to ground restores on its own, so it satisfies the requirement
+  // that SOMETHING pulls the chain back. Without one the old rule stands: a
+  // slack string has no transverse modes, and a chain with no stiffness at all
+  // is not a system.
+  const tethered = hasGroundStiffness(spec)
   if (spec.motionMode === 'transverse') {
-    if (!(spec.tension > 0)) {
-      problems.push('transverse motion needs positive tension: a slack string has no transverse modes')
+    if (!(spec.tension > 0) && !tethered) {
+      problems.push(
+        'transverse motion needs positive tension or a tether to ground: a slack, untethered string has no transverse modes',
+      )
     }
-  } else if (!(spec.totalStiffness > 0)) {
-    problems.push('totalStiffness must be positive')
+  } else if (!(spec.totalStiffness > 0) && !tethered) {
+    problems.push('totalStiffness must be positive, or some node must be tethered to ground')
   }
   if (spec.totalDamping < 0) problems.push('totalDamping must not be negative')
+
+  for (let i = 0; i < spec.nodes.length; i++) {
+    const node = nodeAt(spec, i)
+    if ((node.groundStiffness ?? 0) < 0) problems.push(`node ${i} ground stiffness must not be negative`)
+    if ((node.groundDamping ?? 0) < 0) problems.push(`node ${i} ground damping must not be negative`)
+  }
 
   for (let i = 0; i < spec.nodes.length - 1; i++) {
     if (!(nodeAt(spec, i + 1).position > nodeAt(spec, i).position)) {
