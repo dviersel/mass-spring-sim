@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
 export interface NumberFieldProps {
   readonly label: string
@@ -9,13 +9,27 @@ export interface NumberFieldProps {
   readonly max?: number
   readonly unit?: string
   readonly digits?: number
+  /**
+   * When the value reaches `onChange`.
+   *
+   * `change`, the default, commits every keystroke, which is what makes
+   * dragging stiffness or damping retune the chain as you go.
+   *
+   * `blur` holds the text until the field is left or Enter is pressed. Use it
+   * where a half-typed number is destructive rather than merely wrong: typing
+   * "21" over "11" passes through 2, and a control that rebuilds the chain acts
+   * on that 2 -- collapsing to a chain with no interior nodes and discarding
+   * every per-node mass before the real value arrives.
+   */
+  readonly commitOn?: 'change' | 'blur'
 }
 
 /**
- * A numeric input that keeps its own text while focused.
+ * A numeric input.
  *
- * Reformatting on every keystroke would fight the user mid-edit -- typing "0.0"
- * on the way to "0.05" would be snapped back before the rest arrives.
+ * Under `commitOn="blur"` it keeps its own text while focused, because
+ * reformatting on every keystroke fights the user mid-edit -- typing "0.0" on
+ * the way to "0.05" would be clamped and snapped back before the rest arrives.
  */
 export function NumberField({
   label,
@@ -26,13 +40,25 @@ export function NumberField({
   max,
   unit,
   digits = 4,
+  commitOn = 'change',
 }: NumberFieldProps): ReactNode {
+  const [draft, setDraft] = useState<string | null>(null)
+
   const clamp = (next: number): number => {
     let result = next
     if (min !== undefined) result = Math.max(min, result)
     if (max !== undefined) result = Math.min(max, result)
     return result
   }
+  const commit = (text: string): void => {
+    const next = Number.parseFloat(text)
+    // An unparseable draft reverts rather than committing a guess.
+    if (Number.isFinite(next)) onChange(clamp(next))
+    setDraft(null)
+  }
+
+  const formatted = Number.isFinite(value) ? String(Number(value.toPrecision(digits))) : '0'
+
   return (
     <label className="field">
       <span>{label}</span>
@@ -40,10 +66,20 @@ export function NumberField({
         <input
           type="number"
           step={step}
-          value={Number.isFinite(value) ? Number(value.toPrecision(digits)) : 0}
+          value={draft ?? formatted}
           onChange={(event) => {
+            if (commitOn === 'blur') {
+              setDraft(event.target.value)
+              return
+            }
             const next = Number.parseFloat(event.target.value)
             if (Number.isFinite(next)) onChange(clamp(next))
+          }}
+          onBlur={(event) => {
+            if (commitOn === 'blur') commit(event.target.value)
+          }}
+          onKeyDown={(event) => {
+            if (commitOn === 'blur' && event.key === 'Enter') commit(event.currentTarget.value)
           }}
         />
         {unit !== undefined && <span className="unit">{unit}</span>}

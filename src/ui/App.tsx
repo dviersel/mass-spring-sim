@@ -504,6 +504,10 @@ function Simulator({ onReset }: { readonly onReset: () => void }): ReactNode {
                 min={2}
                 max={41}
                 digits={2}
+                // Committing per keystroke would rebuild the chain for every
+                // digit: typing 21 over 11 passes through 2, which has no
+                // interior nodes and so discards every per-node mass on the way.
+                commitOn="blur"
                 value={spec.nodes.length}
                 onChange={(count) => {
                   setSelectedNode(0)
