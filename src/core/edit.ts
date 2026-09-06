@@ -118,6 +118,24 @@ export function moveNode(spec: ChainSpec, index: number, position: number): Chai
 }
 
 /**
+ * Index of the entry in `positions` nearest to `p`, ties going to the lower
+ * index. Only exact ties are affected, which happens when a new node lands
+ * precisely between two old ones.
+ */
+function nearestIndex(positions: readonly number[], p: number): number {
+  let best = 0
+  let bestDistance = Infinity
+  for (const [i, position] of positions.entries()) {
+    const distance = Math.abs(position - p)
+    if (distance < bestDistance) {
+      bestDistance = distance
+      best = i
+    }
+  }
+  return best
+}
+
+/**
  * Rebuild the chain with a different number of nodes, spaced evenly.
  *
  * The degree-of-freedom count is derived from the spec, never assumed, so this
@@ -125,9 +143,19 @@ export function moveNode(spec: ChainSpec, index: number, position: number): Chai
  * interesting configuration reachable: three nodes, one free mass between two
  * driven ones.
  *
- * End nodes keep their driven state and motion; interior nodes start free,
- * because there is no meaningful correspondence between old and new interior
- * indices when the count changes.
+ * Material properties -- nodal mass, and the per-segment stiffness and damping
+ * overrides -- resample from the nearest old node or segment by ARC LENGTH.
+ * Index correspondence is meaningless once the count changes, but position is
+ * not, so a mass defect stays where it was put instead of being flattened away.
+ * Growth can widen a defect onto a node that ties for nearest, and shrinking
+ * past one drops it; both follow from resampling a lumped quantity and are
+ * preferable to interpolating, which would smear a defect across nodes that
+ * never carried it.
+ *
+ * Excitation does NOT resample. End nodes keep their driven state and motion;
+ * interior nodes start free, and every force, actuator and stiffness modulation
+ * resets. A prescribed motion belongs to one node in one arrangement, and
+ * moving it to a node the user did not choose is worse than clearing it.
  */
 export function resizeChain(spec: ChainSpec, nodeCount: number): ChainSpec {
   const count = Math.max(2, Math.round(nodeCount))
@@ -137,15 +165,26 @@ export function resizeChain(spec: ChainSpec, nodeCount: number): ChainSpec {
   const last = spec.nodes[spec.nodes.length - 1]
   if (first === undefined || last === undefined) return spec
   const span = last.position - first.position
+  const positionAt = (i: number): number => first.position + (span * i) / (count - 1)
+
+  const nodePositions = spec.nodes.map((node) => node.position)
+  // A segment is resampled on its midpoint, being the thing that has a position.
+  const segmentMidpoints = spec.segments.map((_, i) => {
+    const a = spec.nodes[i]
+    const b = spec.nodes[i + 1]
+    return a !== undefined && b !== undefined ? (a.position + b.position) / 2 : first.position
+  })
 
   const nodes: ChainNode[] = []
   for (let i = 0; i < count; i++) {
     const isFirst = i === 0
     const isLast = i === count - 1
     const end = isFirst ? first : last
+    const position = positionAt(i)
+    const source = spec.nodes[nearestIndex(nodePositions, position)]
     nodes.push({
-      position: first.position + (span * i) / (count - 1),
-      mass: isFirst || isLast ? end.mass : (spec.nodes[1]?.mass ?? end.mass),
+      position,
+      mass: source?.mass ?? end.mass,
       driven: isFirst || isLast ? end.driven : false,
       motion: isFirst || isLast ? end.motion : OFF,
       force: OFF,
@@ -154,7 +193,14 @@ export function resizeChain(spec: ChainSpec, nodeCount: number): ChainSpec {
 
   const segments: ChainSegment[] = []
   for (let i = 0; i < count - 1; i++) {
-    segments.push({ actuator: OFF, stiffnessModulation: OFF })
+    const midpoint = (positionAt(i) + positionAt(i + 1)) / 2
+    const source = spec.segments[nearestIndex(segmentMidpoints, midpoint)]
+    segments.push({
+      actuator: OFF,
+      stiffnessModulation: OFF,
+      stiffnessOverride: source?.stiffnessOverride,
+      dampingOverride: source?.dampingOverride,
+    })
   }
 
   return { ...spec, nodes, segments }
